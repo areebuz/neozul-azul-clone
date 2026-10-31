@@ -1,0 +1,2254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEOZUL — tile drafting for 2–4 players, online or offline</title>
+<meta name="description" content="Fan-made NEOZUL: hot-seat, vs AI, or free online multiplayer with friends over peer-to-peer WebRTC. One HTML file — drop it on GitHub Pages and play.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='3' width='26' height='26' rx='7' fill='%232e7f86'/%3E%3Crect x='10.5' y='10.5' width='11' height='11' rx='2' fill='none' stroke='%23fbf7ec' stroke-width='2.4' transform='rotate(45 16 16)'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Nunito:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+/* ================= NEOZUL — bright, classic tile-drafting table ================= */
+:root{
+  --bg:#f3ead7; --panel:#f7f1e1; --panel2:#efe6cf; --paper:#fbf7ec;
+  --ink:#3f3220; --ink2:#6d5c3e; --faint:#a3926e;
+  --line:#dccfa9; --line2:#c8b68b;
+  --teal:#2e7f86; --teal2:#256a70; --terra:#b85c38; --gold:#c9971f;
+  --p1:#cf4437; --p2:#2f9e5f; --p3:#3379c0; --p4:#e0a81e;
+  --f-head:'Marcellus', 'Times New Roman', Georgia, serif;
+  --f-body:'Nunito', 'Segoe UI', system-ui, sans-serif;
+  --ts:clamp(28px, 3.4vmin, 40px); /* tile size */
+}
+*{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+html,body{height:100%;}
+body{
+  font-family:var(--f-body); color:var(--ink); overflow-x:hidden;
+  background:
+    radial-gradient(1200px 600px at 12% -8%, rgba(255,252,240,.9), transparent 55%),
+    radial-gradient(1000px 560px at 96% 110%, rgba(214,183,128,.35), transparent 60%),
+    var(--bg);
+  background-attachment:fixed;
+}
+#fx{position:fixed; inset:0; pointer-events:none; z-index:94;}
+#app{position:relative; z-index:2; min-height:100%; display:flex; flex-direction:column;}
+h1,h2,h3{font-family:var(--f-head); font-weight:400;}
+button{font-family:inherit; cursor:pointer;}
+input{font-family:inherit;}
+::selection{background:var(--teal); color:#fff;}
+
+/* ---------- buttons, chips, tags ---------- */
+.btn{font-weight:800; letter-spacing:.07em; font-size:14px; color:#fdf9ee;
+  background:var(--teal); border:none; border-radius:10px; padding:11px 20px; text-transform:uppercase;
+  box-shadow:0 2px 0 var(--teal2), 0 4px 10px rgba(46,90,96,.22);
+  transition:transform .12s, box-shadow .12s, filter .12s; user-select:none;}
+.btn:hover{transform:translateY(-1px); filter:brightness(1.06); box-shadow:0 3px 0 var(--teal2), 0 7px 14px rgba(46,90,96,.28);}
+.btn:active{transform:translateY(1px); box-shadow:0 1px 0 var(--teal2);}
+.btn.warm{background:var(--terra); box-shadow:0 2px 0 #8f4629, 0 4px 10px rgba(150,80,40,.22);}
+.btn.warm:hover{box-shadow:0 3px 0 #8f4629, 0 7px 14px rgba(150,80,40,.28);}
+.btn.danger{background:#a83a32; box-shadow:0 2px 0 #7c2822, 0 4px 10px rgba(140,50,40,.22);}
+.btn.big{font-size:17px; padding:14px 32px;}
+.btn.small{font-size:11px; padding:6px 10px; border-radius:8px;}
+.btn.ghost{background:var(--paper); color:var(--ink2); border:1px solid var(--line2); box-shadow:none;}
+.btn.ghost:hover{color:var(--ink); border-color:var(--faint); filter:none;}
+
+.seg{display:inline-flex; border:1px solid var(--line2); border-radius:10px; overflow:hidden; background:var(--paper);}
+.seg button{font-weight:800; font-size:12px; letter-spacing:.06em; color:var(--ink2); background:transparent; border:none; padding:9px 16px; text-transform:uppercase; transition:.12s;}
+.seg button:hover{color:var(--ink); background:rgba(184,92,56,.08);}
+.seg button.on{color:#fff; background:var(--teal);}
+
+.chip{display:inline-flex; align-items:center; gap:6px; font-weight:800; font-size:12px; letter-spacing:.08em;
+  padding:5px 12px; border-radius:999px; border:1px solid var(--line2); background:var(--paper); color:var(--ink2); text-transform:uppercase;}
+.chip.warn{display:none; border-color:#d8a13c; color:#8a5f10; background:#fbedcd;}
+.chip.warn.show{display:inline-flex;}
+.chip.turnchip{border-color:rgba(0,0,0,.15); color:#fff;
+  background:color-mix(in srgb, var(--pc, var(--teal)) 85%, #000 6%);}
+
+.tag{font-size:10.5px; font-weight:800; letter-spacing:.1em; padding:3px 8px; border-radius:6px; text-transform:uppercase;}
+.tag.you{background:#2e7f86; color:#fff;}
+.tag.ai{background:#efe0cd; color:#8a5a2b; border:1px solid #d8c3a0;}
+.tag.tok{background:#3f3220; color:#f3e9d2;}
+
+/* ---------- tiles ---------- */
+.tile{
+  width:var(--ts); height:var(--ts); border-radius:16%; position:relative; flex:none;
+  background:linear-gradient(150deg, color-mix(in srgb, var(--tc) 84%, #fff 16%) 0%, var(--tc) 55%, color-mix(in srgb, var(--tc) 82%, #000 18%) 100%);
+  border:1px solid color-mix(in srgb, var(--tc) 62%, #000 38%);
+  box-shadow:0 2px 3px rgba(70,50,15,.28), inset 0 1px 2px rgba(255,255,255,.45), inset 0 -2px 4px rgba(0,0,0,.14);
+  transition:transform .14s, box-shadow .14s, filter .14s;
+}
+.tile::after{content:''; position:absolute; inset:20%; border-radius:22%;
+  border:2px solid rgba(255,255,255,.35);}
+.tile[data-c="blue"]  {--tc:#4a76b8;}
+.tile[data-c="yellow"]{--tc:#e0b34e;}
+.tile[data-c="red"]   {--tc:#d95d4e;}
+.tile[data-c="black"] {--tc:#5a5a64;}
+.tile[data-c="cyan"]  {--tc:#58b7b0;}
+.tile.small{width:calc(var(--ts)*.78); height:calc(var(--ts)*.78);}
+.tile.small::after{border-width:1.5px;}
+.tile.clickable{cursor:pointer;}
+.tile.clickable:hover{transform:translateY(-3px) scale(1.05); filter:brightness(1.07); z-index:3;
+  box-shadow:0 5px 8px rgba(70,50,15,.3), inset 0 1px 2px rgba(255,255,255,.5);}
+.tile.sel{transform:translateY(-6px) scale(1.1); z-index:4;
+  box-shadow:0 0 0 3px #fff, 0 0 0 5px color-mix(in srgb, var(--tc) 70%, #000 10%), 0 8px 14px rgba(70,50,15,.35);}
+.tile.pop-in{animation:popin .38s cubic-bezier(.2,1.6,.4,1);}
+@keyframes popin{0%{transform:scale(.2); opacity:0} 60%{transform:scale(1.15); opacity:1} 100%{transform:scale(1)}}
+.tile.dimm{filter:saturate(.5) opacity(.5); pointer-events:none;}
+
+/* first-player token: classic black "1" tile */
+.tokencore{
+  width:var(--ts); height:var(--ts); flex:none; display:grid; place-items:center;
+  background:linear-gradient(150deg,#4a4a52,#2c2c33); border-radius:16%;
+  border:1px solid #1a1a20;
+  box-shadow:0 2px 3px rgba(0,0,0,.35), inset 0 1px 2px rgba(255,255,255,.22);
+  font-family:var(--f-head); font-size:calc(var(--ts)*.5); color:#f3e9d2; line-height:1;
+}
+.tokencore.small{width:calc(var(--ts)*.78); height:calc(var(--ts)*.78); font-size:calc(var(--ts)*.38);}
+.tokencore.clickable{cursor:pointer;}
+
+/* ---------- lobby ---------- */
+#lobby{display:flex; flex-direction:column; align-items:center; padding:46px 16px 60px; gap:20px; width:100%; max-width:980px; margin:0 auto;}
+.logorow{display:flex; align-items:center; gap:18px;}
+.brandmark{width:clamp(44px,7vw,62px); height:clamp(44px,7vw,62px); border-radius:22%; flex:none;
+  background:linear-gradient(150deg,#5b8ec4,#39699e); position:relative;
+  box-shadow:0 4px 10px rgba(40,70,110,.28), inset 0 2px 3px rgba(255,255,255,.4);}
+.brandmark::after{content:''; position:absolute; inset:24%; border:3px solid rgba(255,255,255,.55); border-radius:16%; transform:rotate(45deg) scale(.84);}
+h1.logo{font-size:clamp(46px,8vw,84px); letter-spacing:.04em; color:#3f3220; line-height:1;}
+h1.logo b{color:var(--teal); font-weight:400;}
+.subline{letter-spacing:.32em; font-size:clamp(10px,1.5vw,13px); color:var(--terra); text-transform:uppercase; font-weight:800; margin-top:-8px;}
+.lobbypanel{width:100%; background:var(--panel); border:1px solid var(--line); border-radius:18px; padding:24px;
+  box-shadow:0 14px 40px rgba(120,90,40,.15), inset 0 0 0 1px rgba(255,255,255,.5);}
+.lobbypanel h2{font-family:var(--f-body); font-weight:800; font-size:13px; letter-spacing:.28em; color:var(--ink2); text-transform:uppercase; margin-bottom:14px;}
+.slotrow{display:grid; grid-template-columns:18px 34px 1fr auto; gap:10px; align-items:center; padding:10px 12px;
+  border:1px solid var(--line); border-left:5px solid var(--pc,#c8b68b); border-radius:12px; margin-bottom:10px; background:var(--paper);}
+.seat1{--pc:#cf4437;} .seat2{--pc:#2f9e5f;} .seat3{--pc:#3379c0;} .seat4{--pc:#e0a81e;}
+.seatdot{width:14px; height:14px; border-radius:50%; background:var(--pc,#c8b68b); box-shadow:inset 0 1px 2px rgba(255,255,255,.4);}
+.slotnum{font-weight:800; font-size:15px; color:var(--ink2);}
+.namein{width:100%; background:#fff; border:1px solid var(--line2); border-radius:8px; color:var(--ink);
+  font-weight:700; font-size:14px; letter-spacing:.04em; padding:9px 12px; outline:none;}
+.namein:focus{border-color:var(--teal); box-shadow:0 0 0 3px rgba(46,127,134,.18);}
+.slotctl{display:flex; gap:8px; align-items:center; justify-content:flex-end;}
+.typerow{display:flex; gap:16px; flex-wrap:wrap; align-items:center; justify-content:space-between; margin:2px 0 16px;}
+.togglerow{display:flex; gap:9px; align-items:center; color:var(--ink2); font-weight:700; font-size:14px; cursor:pointer; user-select:none;}
+.tgl{width:40px; height:22px; border-radius:12px; border:1px solid var(--line2); background:#e4d9bd; position:relative; transition:.15s; flex:none;}
+.tgl::after{content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(0,0,0,.2); transition:.15s;}
+.tgl.on{background:var(--teal); border-color:var(--teal2);}
+.tgl.on::after{left:20px;}
+.lobbymain{display:flex; gap:14px; flex-wrap:wrap; justify-content:center; margin-top:16px;}
+.footnote{color:var(--ink2); font-size:13.5px; text-align:center; max-width:640px; line-height:1.6;}
+.footnote b{color:var(--ink);}
+
+/* ---------- game screen ---------- */
+#game{display:flex; flex-direction:column; min-height:100%; padding:12px clamp(10px,2vw,22px) 34px; gap:12px;
+  user-select:none; max-width:1280px; margin:0 auto; width:100%;}
+#topbar{display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 16px;
+  box-shadow:0 6px 18px rgba(120,90,40,.12);}
+.brandmini{display:flex; align-items:center; gap:9px; font-family:var(--f-head); font-size:21px; color:#3f3220;}
+.brandmini .brandmark{width:26px; height:26px; border-radius:26%; box-shadow:inset 0 1px 2px rgba(255,255,255,.4);}
+.brandmini .brandmark::after{border-width:2px;}
+#banner{flex:1; text-align:center; font-weight:800; letter-spacing:.05em; font-size:clamp(14px,2vw,19px); color:var(--ink); min-width:220px; text-transform:uppercase;}
+#banner .bname{color:var(--teal);}
+#banner.aiturn{color:var(--terra);}
+#banner .dots::after{content:''; animation:dots 1.2s steps(4) infinite;}
+@keyframes dots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}
+#topbar .tb-group{display:flex; gap:8px;}
+
+/* ---------- table: factories in a ring around the center ---------- */
+#tablezone{
+  --ts:clamp(28px, 3.6vmin, 42px); /* table tiles a touch larger */
+  background:var(--panel);
+  background-image:
+    repeating-linear-gradient(45deg, rgba(178,142,84,.05) 0 2px, transparent 2px 26px),
+    repeating-linear-gradient(-45deg, rgba(178,142,84,.05) 0 2px, transparent 2px 26px);
+  border:1px solid var(--line); border-radius:18px; padding:20px 12px 12px;
+  box-shadow:0 10px 30px rgba(120,90,40,.12), inset 0 0 0 1px rgba(255,255,255,.5);}
+#factring{
+  --plate:calc(var(--ts)*2.5); --orsp:calc(var(--ts)*.55);
+  --ringR:calc(var(--ts)*3.15);
+  position:relative; width:calc(var(--ringR)*2 + var(--plate)); aspect-ratio:1/1; margin:0 auto;}
+#factring.nf7{--ringR:calc(var(--ts)*3.35);}
+#factring.nf9{--ringR:calc(var(--ts)*3.9);}
+.factory{position:absolute; left:calc(50% + var(--ringR)*var(--fx)); top:calc(50% + var(--ringR)*var(--fy));
+  width:var(--plate); height:var(--plate); transform:translate(-50%,-50%);}
+.factory .plate{position:absolute; inset:0; border-radius:50%;
+  background:radial-gradient(circle at 50% 36%, #fefbf2 0%, #efe6cd 52%, #dccfae 100%);
+  border:2px solid #b6a67c;
+  box-shadow:0 3px 7px rgba(90,70,30,.2), inset 0 0 0 4px rgba(255,255,255,.55), inset 0 0 20px rgba(150,120,60,.15);}
+.factory.takable .plate{border-color:#4f9a8f;
+  box-shadow:0 3px 7px rgba(90,70,30,.2), 0 0 0 3px rgba(46,127,134,.18), inset 0 0 0 4px rgba(255,255,255,.55);}
+.ftiles{position:absolute; inset:0;}
+.ftiles .tile{position:absolute; left:calc(50% + var(--ox) - var(--ts)/2); top:calc(50% + var(--oy) - var(--ts)/2);
+  transform:rotate(var(--rot,0deg));}
+.ftiles .tile.clickable:hover{transform:rotate(var(--rot,0deg)) translateY(-3px) scale(1.05);}
+.ftiles .tile.sel{transform:rotate(var(--rot,0deg)) translateY(-6px) scale(1.1);}
+.fsock{position:absolute; left:calc(50% + var(--ox) - var(--ts)*.42); top:calc(50% + var(--oy) - var(--ts)*.42);
+  width:calc(var(--ts)*.84); height:calc(var(--ts)*.84); border-radius:20%;
+  border:1.5px dashed rgba(150,125,70,.38);}
+#centerplate{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+  width:calc(var(--ts)*var(--ck,3.2)); height:calc(var(--ts)*var(--ck,3.2)); border-radius:50%;
+  background:radial-gradient(circle at 50% 42%, #f2e9d2, #e0d2ae 78%, #d3c29a);
+  border:2px dashed #b6a67c; box-shadow:inset 0 2px 8px rgba(120,90,40,.18), 0 2px 6px rgba(90,70,30,.15);
+  display:grid; place-items:center; padding:8px;}
+#centertiles{display:flex; flex-wrap:wrap; gap:4px; justify-content:center; align-items:center; max-width:100%;}
+#centerplate .tokencore{width:calc(var(--ts)*.78); height:calc(var(--ts)*.78); font-size:calc(var(--ts)*.38);}
+#hintline{text-align:center; color:var(--ink2); font-size:14px; min-height:20px; margin-top:8px;}
+#hintline b{color:var(--terra);}
+
+/* ---------- player boards (sepia, seat-colored) ---------- */
+#boards{display:grid; gap:14px; align-items:start;
+  grid-template-columns:repeat(auto-fit, minmax(min(100%, calc(var(--ts)*10 + 96px)), 1fr));}
+.boardcard{--pc:#7a6a4a; border-radius:16px; padding:14px 16px 12px; position:relative;
+  background:linear-gradient(180deg,#f0e4c9,#e5d5b0);
+  border:4px solid var(--pc);
+  box-shadow:0 8px 22px rgba(110,80,30,.16), inset 0 0 0 1px rgba(255,255,255,.45);}
+.boardcard.turn{box-shadow:0 0 0 3px color-mix(in srgb, var(--pc) 38%, transparent), 0 10px 26px rgba(110,80,30,.2), inset 0 0 0 1px rgba(255,255,255,.45);}
+/* seat colors (declared after .boardcard so they win the cascade) */
+.boardcard.seat1{--pc:#cf4437;} .boardcard.seat2{--pc:#2f9e5f;} .boardcard.seat3{--pc:#3379c0;} .boardcard.seat4{--pc:#e0a81e;}
+.boardhead{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;}
+.boardhead .pname{font-family:var(--f-head); font-size:19px; color:#4a3a22; letter-spacing:.03em;}
+.boardhead .pscore{margin-left:auto; font-family:var(--f-head); font-size:30px; color:#7a3b20; line-height:1;}
+.bwrap{display:flex; gap:10px; align-items:flex-start; justify-content:center;}
+/* pattern lines: flush against the wall on their right, growing leftward (BGA orientation) */
+.blines{display:flex; flex-direction:column; gap:5px; align-items:flex-end;}
+.pline{height:var(--ts); display:flex; align-items:center; justify-content:flex-end; gap:4px;
+  border-radius:8px; position:relative;
+  background:rgba(120,90,40,.07); border:1px solid rgba(150,120,70,.22);}
+.pline > *{flex:none;}
+.tsock{width:var(--ts); height:var(--ts); border-radius:16%; border:1.5px dashed rgba(150,120,70,.42); background:rgba(255,255,255,.28);}
+.pline.ok{border-color:var(--teal); cursor:pointer; animation:pulseok 1s infinite alternate;}
+@keyframes pulseok{from{box-shadow:0 0 0 2px rgba(46,127,134,.2)} to{box-shadow:0 0 0 3px rgba(46,127,134,.42)}}
+.pline.no{opacity:.5;}
+.prev{position:absolute; left:-10px; top:50%; transform:translateY(-50%) scale(.7); opacity:0; transition:.12s; pointer-events:none; z-index:5;
+  font-weight:800; font-size:12.5px; color:#fff; background:var(--teal); border-radius:7px; padding:2px 7px; white-space:nowrap;}
+.pline:hover .prev{opacity:1; transform:translateY(-50%) scale(1);}
+.prev.bad{background:#b23b2e;}
+.prev.mix{background:#b8860b;}
+.wallgrid{display:grid; grid-template-columns:repeat(5, var(--ts)); gap:5px;}
+.wcell{width:var(--ts); height:var(--ts); border-radius:16%; position:relative; display:grid; place-items:center;
+  background:color-mix(in srgb, var(--wc) 30%, #f4ecd8);
+  border:1px solid color-mix(in srgb, var(--wc) 42%, #d9cba6);
+  box-shadow:inset 0 1px 3px rgba(120,90,40,.13);}
+.wcell::after{content:''; position:absolute; inset:26%; border:1.5px solid color-mix(in srgb, var(--wc) 50%, transparent);
+  border-radius:18%; transform:rotate(45deg) scale(.8);}
+.wcell.filled{border-color:rgba(70,50,15,.25);}
+.wcell.filled::after{display:none;}
+.wcell.landing{animation:land .5s cubic-bezier(.2,1.5,.4,1);}
+@keyframes land{0%{transform:scale(1.7); filter:brightness(1.6)} 100%{transform:scale(1)}}
+.floorwrap{position:relative; margin-top:10px; padding-top:8px; border-top:1px dashed rgba(150,120,70,.45);}
+.floorrow{display:flex; gap:6px; align-items:flex-end;}
+.fslot{position:relative; display:flex; flex-direction:column; align-items:center; gap:3px;}
+.fslot .box{width:calc(var(--ts)*.92); height:calc(var(--ts)*.92); border-radius:18%;
+  border:1.5px dashed rgba(150,120,70,.5); background:rgba(255,255,255,.3); display:grid; place-items:center;}
+.fslot.occupied .box{border-style:solid; border-color:rgba(120,90,40,.4); background:rgba(255,255,255,.55);}
+.fslot .pen{font-size:11px; font-weight:800; color:#a04b32; line-height:1;}
+.floorrow.hit{animation:floorshake .4s;}
+@keyframes floorshake{0%,100%{transform:none}25%{transform:translateX(-4px)}50%{transform:translateX(4px)}75%{transform:translateX(-3px)}}
+.floorrow.ok{cursor:pointer;}
+.fprev{position:absolute; right:0; top:-7px; font-weight:800; font-size:12.5px; color:#fff; background:var(--teal); border-radius:7px; padding:2px 7px; z-index:5;}
+.fprev.bad{background:#b23b2e;}
+
+/* ---------- flying tiles, popups ---------- */
+.flyer{position:fixed; z-index:92; pointer-events:none; transition:all .38s cubic-bezier(.3,.9,.35,1);}
+.pop{position:fixed; z-index:93; pointer-events:none; font-weight:900; letter-spacing:.04em;
+  text-shadow:0 1px 0 rgba(255,255,255,.65); animation:popfly 1s cubic-bezier(.2,.8,.3,1) forwards;}
+.pop.pts{color:var(--teal2); font-size:24px;}
+.pop.big{color:#a5690b; font-size:34px;}
+.pop.neg{color:#b23b2e; font-size:24px;}
+.pop.sys{color:#8a5a2b; font-size:18px;}
+@keyframes popfly{0%{transform:translateY(6px) scale(.4); opacity:0} 18%{transform:translateY(-4px) scale(1.25); opacity:1} 40%{transform:translateY(-14px) scale(1)} 100%{transform:translateY(-84px) scale(1); opacity:0}}
+
+/* ---------- overlays ---------- */
+.overlay{position:fixed; inset:0; z-index:60; display:grid; place-items:center; padding:20px;
+  background:rgba(62,48,26,.45); backdrop-filter:blur(5px); animation:fadein .25s;}
+.overlay.hidden{display:none;}
+@keyframes fadein{from{opacity:0} to{opacity:1}}
+.panel{width:min(680px,94vw); background:var(--paper); border:1px solid var(--line);
+  border-radius:18px; padding:30px; text-align:center; box-shadow:0 30px 80px rgba(60,40,10,.38);}
+.panel h2{font-size:clamp(20px,3.4vw,30px); color:var(--teal2); margin-bottom:8px;}
+.panel .pbody{color:var(--ink2); font-size:16px; line-height:1.6; margin:10px 0 20px;}
+.panel .pbody b{color:var(--ink);}
+.panel .rowbtns{display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
+.passtitle{font-family:var(--f-head); font-size:clamp(26px,5vw,42px); color:#3f3220; margin:8px 0 4px; line-height:1.15;}
+.passtitle .g{color:var(--teal);}
+.bigready{margin-top:18px;}
+.scoretable{width:100%; border-collapse:collapse; margin:14px 0 20px; font-size:15px;}
+.scoretable th{font-size:11px; letter-spacing:.1em; color:var(--ink2); text-transform:uppercase; padding:8px 6px; border-bottom:2px solid var(--line2);}
+.scoretable td{padding:9px 6px; border-bottom:1px solid var(--line); font-weight:700;}
+.scoretable td.n{font-weight:800; color:var(--ink);}
+.scoretable td.g{color:var(--teal2);} .scoretable td.p{color:#8a5a2b;} .scoretable td.y{color:#a5690b;} .scoretable td.r{color:#b23b2e;}
+.scoretable tr.winner td{background:rgba(46,127,134,.1);}
+
+/* ---------- toast & misc ---------- */
+#toast{position:fixed; left:50%; bottom:30px; transform:translateX(-50%) translateY(20px); z-index:97; opacity:0; transition:.2s; pointer-events:none;
+  background:#3f3220; border:1px solid #2a2113; color:#f3e9d2; font-weight:800; letter-spacing:.05em; padding:10px 18px; border-radius:10px; font-size:14px; text-transform:uppercase;}
+#toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+.thinkdots span{animation:th 1.2s infinite; display:inline-block;}
+.thinkdots span:nth-child(2){animation-delay:.15s} .thinkdots span:nth-child(3){animation-delay:.3s}
+@keyframes th{0%,60%,100%{opacity:.25; transform:translateY(0)} 30%{opacity:1; transform:translateY(-3px)}}
+.hidden{display:none !important;}
+
+/* ---------- responsive ---------- */
+#game.np3, #game.np4{--ts:clamp(24px,2.8vmin,33px);}
+@media (max-width:720px){
+  #game{--ts:clamp(24px,7.2vw,34px);}
+  #game.np3, #game.np4{--ts:clamp(23px,6.4vw,30px);}
+  #boards{grid-template-columns:1fr;}
+  #topbar{gap:8px;} #banner{order:-1; flex-basis:100%;}
+}
+
+/* ---------- online lobby ---------- */
+#net{display:flex; flex-direction:column; align-items:center; padding:46px 16px 60px; gap:20px; width:100%; max-width:980px; margin:0 auto;}
+.codebox{display:flex; align-items:center; gap:16px; flex-wrap:wrap; justify-content:center;
+  background:var(--paper); border:1px solid var(--line); border-radius:14px; padding:16px 20px; margin:4px 0 12px;}
+.codelabel{font-size:11px; font-weight:800; letter-spacing:.22em; color:var(--ink2);}
+.codetext{font-family:var(--f-head); font-size:clamp(34px,6vw,52px); letter-spacing:.28em; color:var(--teal2);
+  padding-left:.28em; /* balance the tracking */ line-height:1; user-select:all;}
+#netShareUrl{width:100%; font-size:12px; padding:7px 10px; border:1px solid var(--line2); border-radius:8px; background:#fff; color:var(--ink2);}
+.netstatus{min-height:20px; text-align:center; color:var(--terra); font-weight:800; font-size:14px; letter-spacing:.03em; margin:2px 0 12px;}
+.netseatname{font-weight:800; font-size:15px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.tag.conn{background:rgba(47,158,95,.15); color:#22744a; border:1px solid rgba(47,158,95,.4);}
+.slotrow.merow{outline:2px solid color-mix(in srgb, var(--pc,#c8b68b) 55%, transparent); outline-offset:1px;}
+.waitchip{border-color:rgba(0,0,0,.12); color:var(--ink2); background:rgba(255,255,255,.55); font-size:10px; padding:3px 8px;}
+.codein{font-family:var(--f-head); font-size:18px;}
+.pbody.small{font-size:13.5px; color:var(--faint);}
+.lobbypanel .pbody{color:var(--ink2); font-size:15.5px; line-height:1.6; margin:4px 0 14px;}
+.lobbypanel .pbody b{color:var(--ink);}
+.lobbypanel .rowbtns{display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
+
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= LOBBY (local) ================= -->
+  <section id="lobby">
+    <div class="logorow">
+      <span class="brandmark"></span>
+      <h1 class="logo">NEO<b>ZUL</b></h1>
+    </div>
+    <div class="subline">a bright tile-drafting table &middot; 2&ndash;4 players</div>
+
+    <div class="lobbypanel">
+      <h2>Players at the table</h2>
+      <div class="typerow">
+        <div style="display:flex; gap:12px; align-items:center;">
+          <span class="chip">Table size</span>
+          <div class="seg" id="countSeg">
+            <button data-n="2" class="on">2P</button><button data-n="3">3P</button><button data-n="4">4P</button>
+          </div>
+        </div>
+        <label class="togglerow"><span id="tglPrivacy" class="tgl on"></span> pass-device privacy screen</label>
+        <label class="togglerow"><span id="tglSound" class="tgl on"></span> sound effects</label>
+      </div>
+      <div id="slots"></div>
+      <div class="lobbymain">
+        <button class="btn big" id="btnStart">NEW GAME</button>
+        <button class="btn big warm hidden" id="btnResume">RESUME SAVED GAME</button>
+        <button class="btn big ghost" id="btnNet">PLAY ONLINE</button>
+      </div>
+    </div>
+    <p class="footnote"><b>NEOZUL</b> is an unofficial fan tribute to <b>Azul</b> by Michael Kiesling (Next Move Games).
+    Draft tiles from the factory displays, build your wall, and finish with the most points. Play hot-seat on one device,
+    against AI opponents, or <b>online with friends</b> — everything runs in this single file.</p>
+  </section>
+
+  <!-- ================= ONLINE LOBBY ================= -->
+  <section id="net" class="hidden">
+    <div class="logorow">
+      <span class="brandmark"></span>
+      <h1 class="logo">NEO<b>ZUL</b></h1>
+    </div>
+    <div class="subline">online &middot; play with friends anywhere</div>
+
+    <!-- choose: host or join -->
+    <div class="lobbypanel" id="netHome">
+      <h2>Online table</h2>
+      <div class="pbody" style="margin:6px 0 18px;">Start a table and share the room code, or join a friend's table with the code they sent you. Everything is peer-to-peer — one of the players is the table host.</div>
+      <div class="rowbtns">
+        <button class="btn big" id="btnNetHost">HOST A TABLE</button>
+        <button class="btn big warm" id="btnNetJoin">JOIN A FRIEND</button>
+      </div>
+      <div class="rowbtns" style="margin-top:18px;">
+        <button class="btn ghost netback">&larr; BACK TO LOCAL PLAY</button>
+      </div>
+    </div>
+
+    <!-- host view -->
+    <div class="lobbypanel hidden" id="netHostPanel">
+      <h2>Your table</h2>
+      <div class="typerow">
+        <div class="togglerow"><span class="chip">Your name</span>
+          <input class="namein" id="netHostName" maxlength="14" value="HOST" spellcheck="false" style="width:150px;">
+        </div>
+        <div class="togglerow"><span class="chip">Table size</span>
+          <div class="seg" id="netCountSeg">
+            <button data-n="2" class="on">2P</button><button data-n="3">3P</button><button data-n="4">4P</button>
+          </div>
+        </div>
+      </div>
+      <div class="codebox">
+        <span class="codelabel">ROOM CODE</span>
+        <span class="codetext" id="netCode">·····</span>
+        <button class="btn small" id="btnNetCopy" title="Copy the invite link">&#128279; COPY INVITE LINK</button>
+        <input id="netShareUrl" class="hidden" readonly aria-label="Invite link">
+      </div>
+      <div class="netstatus" id="netStatus"></div>
+      <div id="netSeatList"></div>
+      <div class="pbody small">Friends take open seats when they join. Empty seats can stay as AI opponents — click a seat to change its level. Keep this tab open while you play: the host's browser runs the table.</div>
+      <div class="lobbymain">
+        <button class="btn big" id="btnNetStart">START GAME</button>
+        <button class="btn ghost netback">&larr; LEAVE</button>
+      </div>
+    </div>
+
+    <!-- join form -->
+    <div class="lobbypanel hidden" id="netJoinPanel">
+      <h2>Join a friend's table</h2>
+      <div class="typerow" style="justify-content:center;">
+        <div class="togglerow"><span class="chip">Your name</span>
+          <input class="namein" id="netJoinName" maxlength="14" value="PLAYER" spellcheck="false" style="width:150px;">
+        </div>
+        <div class="togglerow"><span class="chip">Room code</span>
+          <input class="namein codein" id="netJoinCode" maxlength="5" value="" spellcheck="false" autocomplete="off" placeholder="ABCDE" style="width:130px; text-transform:uppercase; letter-spacing:.3em; text-align:center;">
+        </div>
+      </div>
+      <div class="netstatus" id="netJoinStatus"></div>
+      <div class="lobbymain">
+        <button class="btn big" id="btnNetJoin2">JOIN TABLE</button>
+        <button class="btn ghost netback">&larr; BACK</button>
+      </div>
+    </div>
+
+    <!-- joined: waiting room -->
+    <div class="lobbypanel hidden" id="netWaitPanel">
+      <h2>At the table</h2>
+      <div class="netstatus" id="netWaitStatus">Connected — waiting for the host to start the game…</div>
+      <div id="netSeatListWait"></div>
+      <div class="lobbymain">
+        <button class="btn ghost netback">&larr; LEAVE TABLE</button>
+      </div>
+    </div>
+
+    <p class="footnote">Online play is <b>peer-to-peer</b> (WebRTC): game data flows directly between the players' browsers.
+    The public PeerJS server only introduces the players to each other and never sees your game. Share the room code or
+    the invite link — friends open the same page and press <b>JOIN</b>.</p>
+  </section>
+
+  <!-- ================= GAME ================= -->
+  <section id="game" class="hidden np2">
+    <header id="topbar">
+      <div class="brandmini"><span class="brandmark"></span>NEOZUL</div>
+      <span id="roundchip" class="chip">ROUND 1</span>
+      <span id="endchip" class="chip warn">FINAL ROUND</span>
+      <div id="banner"></div>
+      <div class="tb-group">
+        <button class="btn small ghost" id="btnSound" title="Toggle sound">&#9834; ON</button>
+        <button class="btn small" id="btnMenu">MENU</button>
+      </div>
+    </header>
+
+    <section id="tablezone">
+      <div id="factring"></div>
+      <div id="hintline">Click tiles to draft, then a pattern line or the floor line.</div>
+    </section>
+
+    <section id="boards"></section>
+  </section>
+
+  <!-- ================= OVERLAYS ================= -->
+  <div id="ovPass" class="overlay hidden">
+    <div class="panel">
+      <span class="tag you">PASS DEVICE</span>
+      <div class="passtitle">HAND OFF TO <span class="g" id="passName">???</span></div>
+      <div class="pbody">Make sure the previous player isn't peeking at your wall plans.</div>
+      <button class="btn big bigready" id="btnReady">I'M READY</button>
+    </div>
+  </div>
+
+  <div id="ovMenu" class="overlay hidden">
+    <div class="panel">
+      <h2>Menu</h2>
+      <div class="pbody">Progress autosaves after every move. Closing the tab is safe.<br>Online: leaving ends your part in the session.</div>
+      <div class="rowbtns">
+        <button class="btn" id="btnCloseMenu">RESUME PLAY</button>
+        <button class="btn warm" id="btnToLobby">SAVE &amp; QUIT TO LOBBY</button>
+        <button class="btn danger" id="btnAbandon">ABANDON GAME</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="ovOver" class="overlay hidden">
+    <div class="panel">
+      <span class="tag ai" id="overTag">game over</span>
+      <div class="passtitle" id="overTitle">WINNER</div>
+      <div class="pbody" id="overSub"></div>
+      <div id="overTable"></div>
+      <div class="pbody hidden" id="overWait">Waiting for the host to start the next game…</div>
+      <div class="rowbtns">
+        <button class="btn big" id="btnRematch">REMATCH</button>
+        <button class="btn ghost" id="btnOverLobby">LOBBY</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+</div>
+<canvas id="fx"></canvas>
+<script>
+(()=>{function e(e,t,n,r){Object.defineProperty(e,t,{get:n,set:r,enumerable:!0,configurable:!0})}function t(e){return e&&e.__esModule?e.default:e}class n{constructor(){this.chunkedMTU=16300,this._dataCount=1,this.chunk=e=>{let t=[],n=e.byteLength,r=Math.ceil(n/this.chunkedMTU),i=0,s=0;for(;s<n;){let o=Math.min(n,s+this.chunkedMTU),a=e.slice(s,o),c={__peerData:this._dataCount,n:i,data:a,total:r};t.push(c),s=o,i++}return this._dataCount++,t}}}class r{append_buffer(e){this.flush(),this._parts.push(e)}append(e){this._pieces.push(e)}flush(){if(this._pieces.length>0){let e=new Uint8Array(this._pieces);this._parts.push(e),this._pieces=[]}}toArrayBuffer(){let e=[];for(let t of this._parts)e.push(t);return function(e){let t=0;for(let n of e)t+=n.byteLength;let n=new Uint8Array(t),r=0;for(let t of e){let e=new Uint8Array(t.buffer,t.byteOffset,t.byteLength);n.set(e,r),r+=t.byteLength}return n}(e).buffer}constructor(){this.encoder=new TextEncoder,this._pieces=[],this._parts=[]}}function i(e){return new o(e).unpack()}function s(e){let t=new a,n=t.pack(e);return n instanceof Promise?n.then(()=>t.getBuffer()):t.getBuffer()}class o{unpack(){let e,t=this.unpack_uint8();if(t<128)return t;if((224^t)<32)return(224^t)-32;if((e=160^t)<=15)return this.unpack_raw(e);if((e=176^t)<=15)return this.unpack_string(e);if((e=144^t)<=15)return this.unpack_array(e);if((e=128^t)<=15)return this.unpack_map(e);switch(t){case 192:return null;case 193:case 212:case 213:case 214:case 215:return;case 194:return!1;case 195:return!0;case 202:return this.unpack_float();case 203:return this.unpack_double();case 204:return this.unpack_uint8();case 205:return this.unpack_uint16();case 206:return this.unpack_uint32();case 207:return this.unpack_uint64();case 208:return this.unpack_int8();case 209:return this.unpack_int16();case 210:return this.unpack_int32();case 211:return this.unpack_int64();case 216:return e=this.unpack_uint16(),this.unpack_string(e);case 217:return e=this.unpack_uint32(),this.unpack_string(e);case 218:return e=this.unpack_uint16(),this.unpack_raw(e);case 219:return e=this.unpack_uint32(),this.unpack_raw(e);case 220:return e=this.unpack_uint16(),this.unpack_array(e);case 221:return e=this.unpack_uint32(),this.unpack_array(e);case 222:return e=this.unpack_uint16(),this.unpack_map(e);case 223:return e=this.unpack_uint32(),this.unpack_map(e)}}unpack_uint8(){let e=255&this.dataView[this.index];return this.index++,e}unpack_uint16(){let e=this.read(2),t=(255&e[0])*256+(255&e[1]);return this.index+=2,t}unpack_uint32(){let e=this.read(4),t=((256*e[0]+e[1])*256+e[2])*256+e[3];return this.index+=4,t}unpack_uint64(){let e=this.read(8),t=((((((256*e[0]+e[1])*256+e[2])*256+e[3])*256+e[4])*256+e[5])*256+e[6])*256+e[7];return this.index+=8,t}unpack_int8(){let e=this.unpack_uint8();return e<128?e:e-256}unpack_int16(){let e=this.unpack_uint16();return e<32768?e:e-65536}unpack_int32(){let e=this.unpack_uint32();return e<0x80000000?e:e-0x100000000}unpack_int64(){let e=this.unpack_uint64();return e<0x8000000000000000?e:e-0xffffffffffffffff}unpack_raw(e){if(this.length<this.index+e)throw Error(`BinaryPackFailure: index is out of range ${this.index} ${e} ${this.length}`);let t=this.dataBuffer.slice(this.index,this.index+e);return this.index+=e,t}unpack_string(e){let t,n,r=this.read(e),i=0,s="";for(;i<e;)(t=r[i])<160?(n=t,i++):(192^t)<32?(n=(31&t)<<6|63&r[i+1],i+=2):(224^t)<16?(n=(15&t)<<12|(63&r[i+1])<<6|63&r[i+2],i+=3):(n=(7&t)<<18|(63&r[i+1])<<12|(63&r[i+2])<<6|63&r[i+3],i+=4),s+=String.fromCodePoint(n);return this.index+=e,s}unpack_array(e){let t=Array(e);for(let n=0;n<e;n++)t[n]=this.unpack();return t}unpack_map(e){let t={};for(let n=0;n<e;n++)t[this.unpack()]=this.unpack();return t}unpack_float(){let e=this.unpack_uint32();return(0==e>>31?1:-1)*(8388607&e|8388608)*2**((e>>23&255)-127-23)}unpack_double(){let e=this.unpack_uint32(),t=this.unpack_uint32(),n=(e>>20&2047)-1023;return(0==e>>31?1:-1)*((1048575&e|1048576)*2**(n-20)+t*2**(n-52))}read(e){let t=this.index;if(t+e<=this.length)return this.dataView.subarray(t,t+e);throw Error("BinaryPackFailure: read index out of range")}constructor(e){this.index=0,this.dataBuffer=e,this.dataView=new Uint8Array(this.dataBuffer),this.length=this.dataBuffer.byteLength}}class a{getBuffer(){return this._bufferBuilder.toArrayBuffer()}pack(e){if("string"==typeof e)this.pack_string(e);else if("number"==typeof e)Math.floor(e)===e?this.pack_integer(e):this.pack_double(e);else if("boolean"==typeof e)!0===e?this._bufferBuilder.append(195):!1===e&&this._bufferBuilder.append(194);else if(void 0===e)this._bufferBuilder.append(192);else if("object"==typeof e)if(null===e)this._bufferBuilder.append(192);else{let t=e.constructor;if(e instanceof Array){let t=this.pack_array(e);if(t instanceof Promise)return t.then(()=>this._bufferBuilder.flush())}else if(e instanceof ArrayBuffer)this.pack_bin(new Uint8Array(e));else if("BYTES_PER_ELEMENT"in e)this.pack_bin(new Uint8Array(e.buffer,e.byteOffset,e.byteLength));else if(e instanceof Date)this.pack_string(e.toString());else if(e instanceof Blob)return e.arrayBuffer().then(e=>{this.pack_bin(new Uint8Array(e)),this._bufferBuilder.flush()});else if(t==Object||t.toString().startsWith("class")){let t=this.pack_object(e);if(t instanceof Promise)return t.then(()=>this._bufferBuilder.flush())}else throw Error(`Type "${t.toString()}" not yet supported`)}else throw Error(`Type "${typeof e}" not yet supported`);this._bufferBuilder.flush()}pack_bin(e){let t=e.length;if(t<=15)this.pack_uint8(160+t);else if(t<=65535)this._bufferBuilder.append(218),this.pack_uint16(t);else if(t<=0xffffffff)this._bufferBuilder.append(219),this.pack_uint32(t);else throw Error("Invalid length");this._bufferBuilder.append_buffer(e)}pack_string(e){let t=this._textEncoder.encode(e),n=t.length;if(n<=15)this.pack_uint8(176+n);else if(n<=65535)this._bufferBuilder.append(216),this.pack_uint16(n);else if(n<=0xffffffff)this._bufferBuilder.append(217),this.pack_uint32(n);else throw Error("Invalid length");this._bufferBuilder.append_buffer(t)}pack_array(e){let t=e.length;if(t<=15)this.pack_uint8(144+t);else if(t<=65535)this._bufferBuilder.append(220),this.pack_uint16(t);else if(t<=0xffffffff)this._bufferBuilder.append(221),this.pack_uint32(t);else throw Error("Invalid length");let n=r=>{if(r<t){let t=this.pack(e[r]);return t instanceof Promise?t.then(()=>n(r+1)):n(r+1)}};return n(0)}pack_integer(e){if(e>=-32&&e<=127)this._bufferBuilder.append(255&e);else if(e>=0&&e<=255)this._bufferBuilder.append(204),this.pack_uint8(e);else if(e>=-128&&e<=127)this._bufferBuilder.append(208),this.pack_int8(e);else if(e>=0&&e<=65535)this._bufferBuilder.append(205),this.pack_uint16(e);else if(e>=-32768&&e<=32767)this._bufferBuilder.append(209),this.pack_int16(e);else if(e>=0&&e<=0xffffffff)this._bufferBuilder.append(206),this.pack_uint32(e);else if(e>=-0x80000000&&e<=0x7fffffff)this._bufferBuilder.append(210),this.pack_int32(e);else if(e>=-0x8000000000000000&&e<=0x8000000000000000)this._bufferBuilder.append(211),this.pack_int64(e);else if(e>=0&&e<=0xffffffffffffffff)this._bufferBuilder.append(207),this.pack_uint64(e);else throw Error("Invalid integer")}pack_double(e){let t=0;e<0&&(t=1,e=-e);let n=Math.floor(Math.log(e)/Math.LN2),r=Math.floor((e/2**n-1)*0x10000000000000),i=t<<31|n+1023<<20|r/0x100000000&1048575;this._bufferBuilder.append(203),this.pack_int32(i),this.pack_int32(r%0x100000000)}pack_object(e){let t=Object.keys(e),n=t.length;if(n<=15)this.pack_uint8(128+n);else if(n<=65535)this._bufferBuilder.append(222),this.pack_uint16(n);else if(n<=0xffffffff)this._bufferBuilder.append(223),this.pack_uint32(n);else throw Error("Invalid length");let r=n=>{if(n<t.length){let i=t[n];if(e.hasOwnProperty(i)){this.pack(i);let t=this.pack(e[i]);if(t instanceof Promise)return t.then(()=>r(n+1))}return r(n+1)}};return r(0)}pack_uint8(e){this._bufferBuilder.append(e)}pack_uint16(e){this._bufferBuilder.append(e>>8),this._bufferBuilder.append(255&e)}pack_uint32(e){let t=0|e;this._bufferBuilder.append((0xff000000&t)>>>24),this._bufferBuilder.append((0xff0000&t)>>>16),this._bufferBuilder.append((65280&t)>>>8),this._bufferBuilder.append(255&t)}pack_uint64(e){let t=e/0x100000000,n=e%0x100000000;this._bufferBuilder.append((0xff000000&t)>>>24),this._bufferBuilder.append((0xff0000&t)>>>16),this._bufferBuilder.append((65280&t)>>>8),this._bufferBuilder.append(255&t),this._bufferBuilder.append((0xff000000&n)>>>24),this._bufferBuilder.append((0xff0000&n)>>>16),this._bufferBuilder.append((65280&n)>>>8),this._bufferBuilder.append(255&n)}pack_int8(e){this._bufferBuilder.append(255&e)}pack_int16(e){this._bufferBuilder.append((65280&e)>>8),this._bufferBuilder.append(255&e)}pack_int32(e){this._bufferBuilder.append(e>>>24&255),this._bufferBuilder.append((0xff0000&e)>>>16),this._bufferBuilder.append((65280&e)>>>8),this._bufferBuilder.append(255&e)}pack_int64(e){let t=Math.floor(e/0x100000000),n=e%0x100000000;this._bufferBuilder.append((0xff000000&t)>>>24),this._bufferBuilder.append((0xff0000&t)>>>16),this._bufferBuilder.append((65280&t)>>>8),this._bufferBuilder.append(255&t),this._bufferBuilder.append((0xff000000&n)>>>24),this._bufferBuilder.append((0xff0000&n)>>>16),this._bufferBuilder.append((65280&n)>>>8),this._bufferBuilder.append(255&n)}constructor(){this._bufferBuilder=new r,this._textEncoder=new TextEncoder}}"use strict";let c=!0,p=!0;function d(e,t,n){let r=e.match(t);return r&&r.length>=n&&parseInt(r[n],10)}function l(e,t,n){if(!e.RTCPeerConnection)return;let r=e.RTCPeerConnection.prototype,i=r.addEventListener;r.addEventListener=function(e,r){if(e!==t)return i.apply(this,arguments);let s=e=>{let t=n(e);t&&(r.handleEvent?r.handleEvent(t):r(t))};return this._eventMap=this._eventMap||{},this._eventMap[t]||(this._eventMap[t]=new Map),this._eventMap[t].set(r,s),i.apply(this,[e,s])};let s=r.removeEventListener;r.removeEventListener=function(e,n){if(e!==t||!this._eventMap||!this._eventMap[t]||!this._eventMap[t].has(n))return s.apply(this,arguments);let r=this._eventMap[t].get(n);return this._eventMap[t].delete(n),0===this._eventMap[t].size&&delete this._eventMap[t],0===Object.keys(this._eventMap).length&&delete this._eventMap,s.apply(this,[e,r])},Object.defineProperty(r,"on"+t,{get(){return this["_on"+t]},set(e){this["_on"+t]&&(this.removeEventListener(t,this["_on"+t]),delete this["_on"+t]),e&&this.addEventListener(t,this["_on"+t]=e)},enumerable:!0,configurable:!0})}function h(e){return"boolean"!=typeof e?Error("Argument type: "+typeof e+". Please use a boolean."):(c=e,e?"adapter.js logging disabled":"adapter.js logging enabled")}function u(e){return"boolean"!=typeof e?Error("Argument type: "+typeof e+". Please use a boolean."):(p=!e,"adapter.js deprecation warnings "+(e?"disabled":"enabled"))}function f(){"object"==typeof window&&(c||"undefined"!=typeof console&&"function"==typeof console.log&&console.log.apply(console,arguments))}function m(e,t){p&&console.warn(e+" is deprecated, please use "+t+" instead.")}function _(e){return"[object Object]"===Object.prototype.toString.call(e)}function g(e,t,n){let r=n?"outbound-rtp":"inbound-rtp",i=new Map;if(null===t)return i;let s=[];return e.forEach(e=>{"track"===e.type&&e.trackIdentifier===t.id&&s.push(e)}),s.forEach(t=>{e.forEach(n=>{n.type===r&&n.trackId===t.id&&function e(t,n,r){!n||r.has(n.id)||(r.set(n.id,n),Object.keys(n).forEach(i=>{i.endsWith("Id")?e(t,t.get(n[i]),r):i.endsWith("Ids")&&n[i].forEach(n=>{e(t,t.get(n),r)})}))}(e,n,i)})}),i}"use strict";var y={};function C(e,t){let n=e&&e.navigator;if(!n.mediaDevices)return;let r=function(e){if("object"!=typeof e||e.mandatory||e.optional)return e;let t={};return Object.keys(e).forEach(n=>{if("require"===n||"advanced"===n||"mediaSource"===n)return;let r="object"==typeof e[n]?e[n]:{ideal:e[n]};void 0!==r.exact&&"number"==typeof r.exact&&(r.min=r.max=r.exact);let i=function(e,t){return e?e+t.charAt(0).toUpperCase()+t.slice(1):"deviceId"===t?"sourceId":t};if(void 0!==r.ideal){t.optional=t.optional||[];let e={};"number"==typeof r.ideal?(e[i("min",n)]=r.ideal,t.optional.push(e),(e={})[i("max",n)]=r.ideal):e[i("",n)]=r.ideal,t.optional.push(e)}void 0!==r.exact&&"number"!=typeof r.exact?(t.mandatory=t.mandatory||{},t.mandatory[i("",n)]=r.exact):["min","max"].forEach(e=>{void 0!==r[e]&&(t.mandatory=t.mandatory||{},t.mandatory[i(e,n)]=r[e])})}),e.advanced&&(t.optional=(t.optional||[]).concat(e.advanced)),t},i=function(e,i){if(t.version>=61)return i(e);if((e=JSON.parse(JSON.stringify(e)))&&"object"==typeof e.audio){let t=function(e,t,n){t in e&&!(n in e)&&(e[n]=e[t],delete e[t])};t((e=JSON.parse(JSON.stringify(e))).audio,"autoGainControl","googAutoGainControl"),t(e.audio,"noiseSuppression","googNoiseSuppression"),e.audio=r(e.audio)}if(e&&"object"==typeof e.video){let s=e.video.facingMode;s=s&&("object"==typeof s?s:{ideal:s});let o=t.version<66;if(s&&("user"===s.exact||"environment"===s.exact||"user"===s.ideal||"environment"===s.ideal)&&!(n.mediaDevices.getSupportedConstraints&&n.mediaDevices.getSupportedConstraints().facingMode&&!o)){let t;if(delete e.video.facingMode,"environment"===s.exact||"environment"===s.ideal?t=["back","rear"]:("user"===s.exact||"user"===s.ideal)&&(t=["front"]),t)return n.mediaDevices.enumerateDevices().then(n=>{let o=(n=n.filter(e=>"videoinput"===e.kind)).find(e=>t.some(t=>e.label.toLowerCase().includes(t)));return!o&&n.length&&t.includes("back")&&(o=n[n.length-1]),o&&(e.video.deviceId=s.exact?{exact:o.deviceId}:{ideal:o.deviceId}),e.video=r(e.video),f("chrome: "+JSON.stringify(e)),i(e)})}e.video=r(e.video)}return f("chrome: "+JSON.stringify(e)),i(e)},s=function(e){return t.version>=64?e:{name:({PermissionDeniedError:"NotAllowedError",PermissionDismissedError:"NotAllowedError",InvalidStateError:"NotAllowedError",DevicesNotFoundError:"NotFoundError",ConstraintNotSatisfiedError:"OverconstrainedError",TrackStartError:"NotReadableError",MediaDeviceFailedDueToShutdown:"NotAllowedError",MediaDeviceKillSwitchOn:"NotAllowedError",TabCaptureError:"AbortError",ScreenCaptureError:"AbortError",DeviceCaptureError:"AbortError"})[e.name]||e.name,message:e.message,constraint:e.constraint||e.constraintName,toString(){return this.name+(this.message&&": ")+this.message}}};if(n.getUserMedia=(function(e,t,r){i(e,e=>{n.webkitGetUserMedia(e,t,e=>{r&&r(s(e))})})}).bind(n),n.mediaDevices.getUserMedia){let e=n.mediaDevices.getUserMedia.bind(n.mediaDevices);n.mediaDevices.getUserMedia=function(t){return i(t,t=>e(t).then(e=>{if(t.audio&&!e.getAudioTracks().length||t.video&&!e.getVideoTracks().length)throw e.getTracks().forEach(e=>{e.stop()}),new DOMException("","NotFoundError");return e},e=>Promise.reject(s(e))))}}}"use strict";function v(e){e.MediaStream=e.MediaStream||e.webkitMediaStream}function b(e){if("object"!=typeof e||!e.RTCPeerConnection||"ontrack"in e.RTCPeerConnection.prototype)l(e,"track",e=>(e.transceiver||Object.defineProperty(e,"transceiver",{value:{receiver:e.receiver}}),e));else{Object.defineProperty(e.RTCPeerConnection.prototype,"ontrack",{get(){return this._ontrack},set(e){this._ontrack&&this.removeEventListener("track",this._ontrack),this.addEventListener("track",this._ontrack=e)},enumerable:!0,configurable:!0});let t=e.RTCPeerConnection.prototype.setRemoteDescription;e.RTCPeerConnection.prototype.setRemoteDescription=function(){return this._ontrackpoly||(this._ontrackpoly=t=>{t.stream.addEventListener("addtrack",n=>{let r;r=e.RTCPeerConnection.prototype.getReceivers?this.getReceivers().find(e=>e.track&&e.track.id===n.track.id):{track:n.track};let i=new Event("track");i.track=n.track,i.receiver=r,i.transceiver={receiver:r},i.streams=[t.stream],this.dispatchEvent(i)}),t.stream.getTracks().forEach(n=>{let r;r=e.RTCPeerConnection.prototype.getReceivers?this.getReceivers().find(e=>e.track&&e.track.id===n.id):{track:n};let i=new Event("track");i.track=n,i.receiver=r,i.transceiver={receiver:r},i.streams=[t.stream],this.dispatchEvent(i)})},this.addEventListener("addstream",this._ontrackpoly)),t.apply(this,arguments)}}}function T(e){if("object"==typeof e&&e.RTCPeerConnection&&!("getSenders"in e.RTCPeerConnection.prototype)&&"createDTMFSender"in e.RTCPeerConnection.prototype){let t=function(e,t){return{track:t,get dtmf(){return void 0===this._dtmf&&("audio"===t.kind?this._dtmf=e.createDTMFSender(t):this._dtmf=null),this._dtmf},_pc:e}};if(!e.RTCPeerConnection.prototype.getSenders){e.RTCPeerConnection.prototype.getSenders=function(){return this._senders=this._senders||[],this._senders.slice()};let n=e.RTCPeerConnection.prototype.addTrack;e.RTCPeerConnection.prototype.addTrack=function(e,r){let i=n.apply(this,arguments);return i||(i=t(this,e),this._senders.push(i)),i};let r=e.RTCPeerConnection.prototype.removeTrack;e.RTCPeerConnection.prototype.removeTrack=function(e){r.apply(this,arguments);let t=this._senders.indexOf(e);-1!==t&&this._senders.splice(t,1)}}let n=e.RTCPeerConnection.prototype.addStream;e.RTCPeerConnection.prototype.addStream=function(e){this._senders=this._senders||[],n.apply(this,[e]),e.getTracks().forEach(e=>{this._senders.push(t(this,e))})};let r=e.RTCPeerConnection.prototype.removeStream;e.RTCPeerConnection.prototype.removeStream=function(e){this._senders=this._senders||[],r.apply(this,[e]),e.getTracks().forEach(e=>{let t=this._senders.find(t=>t.track===e);t&&this._senders.splice(this._senders.indexOf(t),1)})}}else if("object"==typeof e&&e.RTCPeerConnection&&"getSenders"in e.RTCPeerConnection.prototype&&"createDTMFSender"in e.RTCPeerConnection.prototype&&e.RTCRtpSender&&!("dtmf"in e.RTCRtpSender.prototype)){let t=e.RTCPeerConnection.prototype.getSenders;e.RTCPeerConnection.prototype.getSenders=function(){let e=t.apply(this,[]);return e.forEach(e=>e._pc=this),e},Object.defineProperty(e.RTCRtpSender.prototype,"dtmf",{get(){return void 0===this._dtmf&&("audio"===this.track.kind?this._dtmf=this._pc.createDTMFSender(this.track):this._dtmf=null),this._dtmf}})}}function S(e){if(!("object"==typeof e&&e.RTCPeerConnection&&e.RTCRtpSender&&e.RTCRtpReceiver))return;if(!("getStats"in e.RTCRtpSender.prototype)){let t=e.RTCPeerConnection.prototype.getSenders;t&&(e.RTCPeerConnection.prototype.getSenders=function(){let e=t.apply(this,[]);return e.forEach(e=>e._pc=this),e});let n=e.RTCPeerConnection.prototype.addTrack;n&&(e.RTCPeerConnection.prototype.addTrack=function(){let e=n.apply(this,arguments);return e._pc=this,e}),e.RTCRtpSender.prototype.getStats=function(){let e=this;return this._pc.getStats().then(t=>g(t,e.track,!0))}}if(!("getStats"in e.RTCRtpReceiver.prototype)){let t=e.RTCPeerConnection.prototype.getReceivers;t&&(e.RTCPeerConnection.prototype.getReceivers=function(){let e=t.apply(this,[]);return e.forEach(e=>e._pc=this),e}),l(e,"track",e=>(e.receiver._pc=e.srcElement,e)),e.RTCRtpReceiver.prototype.getStats=function(){let e=this;return this._pc.getStats().then(t=>g(t,e.track,!1))}}if(!("getStats"in e.RTCRtpSender.prototype&&"getStats"in e.RTCRtpReceiver.prototype))return;let t=e.RTCPeerConnection.prototype.getStats;e.RTCPeerConnection.prototype.getStats=function(){if(arguments.length>0&&arguments[0]instanceof e.MediaStreamTrack){let e,t,n,r=arguments[0];return(this.getSenders().forEach(t=>{t.track===r&&(e?n=!0:e=t)}),this.getReceivers().forEach(e=>(e.track===r&&(t?n=!0:t=e),e.track===r)),n||e&&t)?Promise.reject(new DOMException("There are more than one sender or receiver for the track.","InvalidAccessError")):e?e.getStats():t?t.getStats():Promise.reject(new DOMException("There is no sender or receiver for the track.","InvalidAccessError"))}return t.apply(this,arguments)}}function k(e){e.RTCPeerConnection.prototype.getLocalStreams=function(){return this._shimmedLocalStreams=this._shimmedLocalStreams||{},Object.keys(this._shimmedLocalStreams).map(e=>this._shimmedLocalStreams[e][0])};let t=e.RTCPeerConnection.prototype.addTrack;e.RTCPeerConnection.prototype.addTrack=function(e,n){if(!n)return t.apply(this,arguments);this._shimmedLocalStreams=this._shimmedLocalStreams||{};let r=t.apply(this,arguments);return this._shimmedLocalStreams[n.id]?-1===this._shimmedLocalStreams[n.id].indexOf(r)&&this._shimmedLocalStreams[n.id].push(r):this._shimmedLocalStreams[n.id]=[n,r],r};let n=e.RTCPeerConnection.prototype.addStream;e.RTCPeerConnection.prototype.addStream=function(e){this._shimmedLocalStreams=this._shimmedLocalStreams||{},e.getTracks().forEach(e=>{if(this.getSenders().find(t=>t.track===e))throw new DOMException("Track already exists.","InvalidAccessError")});let t=this.getSenders();n.apply(this,arguments);let r=this.getSenders().filter(e=>-1===t.indexOf(e));this._shimmedLocalStreams[e.id]=[e].concat(r)};let r=e.RTCPeerConnection.prototype.removeStream;e.RTCPeerConnection.prototype.removeStream=function(e){return this._shimmedLocalStreams=this._shimmedLocalStreams||{},delete this._shimmedLocalStreams[e.id],r.apply(this,arguments)};let i=e.RTCPeerConnection.prototype.removeTrack;e.RTCPeerConnection.prototype.removeTrack=function(e){return this._shimmedLocalStreams=this._shimmedLocalStreams||{},e&&Object.keys(this._shimmedLocalStreams).forEach(t=>{let n=this._shimmedLocalStreams[t].indexOf(e);-1!==n&&this._shimmedLocalStreams[t].splice(n,1),1===this._shimmedLocalStreams[t].length&&delete this._shimmedLocalStreams[t]}),i.apply(this,arguments)}}function R(e,t){if(!e.RTCPeerConnection)return;if(e.RTCPeerConnection.prototype.addTrack&&t.version>=65)return k(e);let n=e.RTCPeerConnection.prototype.getLocalStreams;e.RTCPeerConnection.prototype.getLocalStreams=function(){let e=n.apply(this);return this._reverseStreams=this._reverseStreams||{},e.map(e=>this._reverseStreams[e.id])};let r=e.RTCPeerConnection.prototype.addStream;e.RTCPeerConnection.prototype.addStream=function(t){if(this._streams=this._streams||{},this._reverseStreams=this._reverseStreams||{},t.getTracks().forEach(e=>{if(this.getSenders().find(t=>t.track===e))throw new DOMException("Track already exists.","InvalidAccessError")}),!this._reverseStreams[t.id]){let n=new e.MediaStream(t.getTracks());this._streams[t.id]=n,this._reverseStreams[n.id]=t,t=n}r.apply(this,[t])};let i=e.RTCPeerConnection.prototype.removeStream;function s(e,t){let n=t.sdp;return Object.keys(e._reverseStreams||[]).forEach(t=>{let r=e._reverseStreams[t],i=e._streams[r.id];n=n.replace(RegExp(i.id,"g"),r.id)}),new RTCSessionDescription({type:t.type,sdp:n})}e.RTCPeerConnection.prototype.removeStream=function(e){this._streams=this._streams||{},this._reverseStreams=this._reverseStreams||{},i.apply(this,[this._streams[e.id]||e]),delete this._reverseStreams[this._streams[e.id]?this._streams[e.id].id:e.id],delete this._streams[e.id]},e.RTCPeerConnection.prototype.addTrack=function(t,n){if("closed"===this.signalingState)throw new DOMException("The RTCPeerConnection's signalingState is 'closed'.","InvalidStateError");let r=[].slice.call(arguments,1);if(1!==r.length||!r[0].getTracks().find(e=>e===t))throw new DOMException("The adapter.js addTrack polyfill only supports a single  stream which is associated with the specified track.","NotSupportedError");if(this.getSenders().find(e=>e.track===t))throw new DOMException("Track already exists.","InvalidAccessError");this._streams=this._streams||{},this._reverseStreams=this._reverseStreams||{};let i=this._streams[n.id];if(i)i.addTrack(t),Promise.resolve().then(()=>{this.dispatchEvent(new Event("negotiationneeded"))});else{let r=new e.MediaStream([t]);this._streams[n.id]=r,this._reverseStreams[r.id]=n,this.addStream(r)}return this.getSenders().find(e=>e.track===t)},["createOffer","createAnswer"].forEach(function(t){let n=e.RTCPeerConnection.prototype[t];e.RTCPeerConnection.prototype[t]=({[t](){let e=arguments,t=arguments.length&&"function"==typeof arguments[0];return t?n.apply(this,[t=>{let n=s(this,t);e[0].apply(null,[n])},t=>{e[1]&&e[1].apply(null,t)},arguments[2]]):n.apply(this,arguments).then(e=>s(this,e))}})[t]});let o=e.RTCPeerConnection.prototype.setLocalDescription;e.RTCPeerConnection.prototype.setLocalDescription=function(){var e,t;let n;return arguments.length&&arguments[0].type?(arguments[0]=(e=this,t=arguments[0],n=t.sdp,Object.keys(e._reverseStreams||[]).forEach(t=>{let r=e._reverseStreams[t],i=e._streams[r.id];n=n.replace(RegExp(r.id,"g"),i.id)}),new RTCSessionDescription({type:t.type,sdp:n})),o.apply(this,arguments)):o.apply(this,arguments)};let a=Object.getOwnPropertyDescriptor(e.RTCPeerConnection.prototype,"localDescription");Object.defineProperty(e.RTCPeerConnection.prototype,"localDescription",{get(){let e=a.get.apply(this);return""===e.type?e:s(this,e)}}),e.RTCPeerConnection.prototype.removeTrack=function(e){let t;if("closed"===this.signalingState)throw new DOMException("The RTCPeerConnection's signalingState is 'closed'.","InvalidStateError");if(!e._pc)throw new DOMException("Argument 1 of RTCPeerConnection.removeTrack does not implement interface RTCRtpSender.","TypeError");if(e._pc!==this)throw new DOMException("Sender was not created by this connection.","InvalidAccessError");this._streams=this._streams||{},Object.keys(this._streams).forEach(n=>{this._streams[n].getTracks().find(t=>e.track===t)&&(t=this._streams[n])}),t&&(1===t.getTracks().length?this.removeStream(this._reverseStreams[t.id]):t.removeTrack(e.track),this.dispatchEvent(new Event("negotiationneeded")))}}function P(e,t){!e.RTCPeerConnection&&e.webkitRTCPeerConnection&&(e.RTCPeerConnection=e.webkitRTCPeerConnection),e.RTCPeerConnection&&t.version<53&&["setLocalDescription","setRemoteDescription","addIceCandidate"].forEach(function(t){let n=e.RTCPeerConnection.prototype[t];e.RTCPeerConnection.prototype[t]=({[t](){return arguments[0]=new("addIceCandidate"===t?e.RTCIceCandidate:e.RTCSessionDescription)(arguments[0]),n.apply(this,arguments)}})[t]})}function w(e,t){l(e,"negotiationneeded",e=>{let n=e.target;if(!(t.version<72)&&(!n.getConfiguration||"plan-b"!==n.getConfiguration().sdpSemantics)||"stable"===n.signalingState)return e})}"use strict";e(y,"shimMediaStream",()=>v),e(y,"shimOnTrack",()=>b),e(y,"shimGetSendersWithDtmf",()=>T),e(y,"shimSenderReceiverGetStats",()=>S),e(y,"shimAddTrackRemoveTrackWithNative",()=>k),e(y,"shimAddTrackRemoveTrack",()=>R),e(y,"shimPeerConnection",()=>P),e(y,"fixNegotiationNeeded",()=>w),e(y,"shimGetUserMedia",()=>C);var E={};function x(e,t){let n=e&&e.navigator,r=e&&e.MediaStreamTrack;if(n.getUserMedia=function(e,t,r){m("navigator.getUserMedia","navigator.mediaDevices.getUserMedia"),n.mediaDevices.getUserMedia(e).then(t,r)},!(t.version>55&&"autoGainControl"in n.mediaDevices.getSupportedConstraints())){let e=function(e,t,n){t in e&&!(n in e)&&(e[n]=e[t],delete e[t])},t=n.mediaDevices.getUserMedia.bind(n.mediaDevices);if(n.mediaDevices.getUserMedia=function(n){return"object"==typeof n&&"object"==typeof n.audio&&(e((n=JSON.parse(JSON.stringify(n))).audio,"autoGainControl","mozAutoGainControl"),e(n.audio,"noiseSuppression","mozNoiseSuppression")),t(n)},r&&r.prototype.getSettings){let t=r.prototype.getSettings;r.prototype.getSettings=function(){let n=t.apply(this,arguments);return e(n,"mozAutoGainControl","autoGainControl"),e(n,"mozNoiseSuppression","noiseSuppression"),n}}if(r&&r.prototype.applyConstraints){let t=r.prototype.applyConstraints;r.prototype.applyConstraints=function(n){return"audio"===this.kind&&"object"==typeof n&&(e(n=JSON.parse(JSON.stringify(n)),"autoGainControl","mozAutoGainControl"),e(n,"noiseSuppression","mozNoiseSuppression")),t.apply(this,[n])}}}}"use strict";function D(e,t){e.navigator.mediaDevices&&"getDisplayMedia"in e.navigator.mediaDevices||e.navigator.mediaDevices&&(e.navigator.mediaDevices.getDisplayMedia=function(n){if(!(n&&n.video)){let e=new DOMException("getDisplayMedia without video constraints is undefined");return e.name="NotFoundError",e.code=8,Promise.reject(e)}return!0===n.video?n.video={mediaSource:t}:n.video.mediaSource=t,e.navigator.mediaDevices.getUserMedia(n)})}"use strict";function I(e){"object"==typeof e&&e.RTCTrackEvent&&"receiver"in e.RTCTrackEvent.prototype&&!("transceiver"in e.RTCTrackEvent.prototype)&&Object.defineProperty(e.RTCTrackEvent.prototype,"transceiver",{get(){return{receiver:this.receiver}}})}function M(e,t){if("object"!=typeof e||!(e.RTCPeerConnection||e.mozRTCPeerConnection))return;!e.RTCPeerConnection&&e.mozRTCPeerConnection&&(e.RTCPeerConnection=e.mozRTCPeerConnection),t.version<53&&["setLocalDescription","setRemoteDescription","addIceCandidate"].forEach(function(t){let n=e.RTCPeerConnection.prototype[t];e.RTCPeerConnection.prototype[t]=({[t](){return arguments[0]=new("addIceCandidate"===t?e.RTCIceCandidate:e.RTCSessionDescription)(arguments[0]),n.apply(this,arguments)}})[t]});let n={inboundrtp:"inbound-rtp",outboundrtp:"outbound-rtp",candidatepair:"candidate-pair",localcandidate:"local-candidate",remotecandidate:"remote-candidate"},r=e.RTCPeerConnection.prototype.getStats;e.RTCPeerConnection.prototype.getStats=function(){let[e,i,s]=arguments;return r.apply(this,[e||null]).then(e=>{if(t.version<53&&!i)try{e.forEach(e=>{e.type=n[e.type]||e.type})}catch(t){if("TypeError"!==t.name)throw t;e.forEach((t,r)=>{e.set(r,Object.assign({},t,{type:n[t.type]||t.type}))})}return e}).then(i,s)}}function O(e){if(!("object"==typeof e&&e.RTCPeerConnection&&e.RTCRtpSender)||e.RTCRtpSender&&"getStats"in e.RTCRtpSender.prototype)return;let t=e.RTCPeerConnection.prototype.getSenders;t&&(e.RTCPeerConnection.prototype.getSenders=function(){let e=t.apply(this,[]);return e.forEach(e=>e._pc=this),e});let n=e.RTCPeerConnection.prototype.addTrack;n&&(e.RTCPeerConnection.prototype.addTrack=function(){let e=n.apply(this,arguments);return e._pc=this,e}),e.RTCRtpSender.prototype.getStats=function(){return this.track?this._pc.getStats(this.track):Promise.resolve(new Map)}}function L(e){if(!("object"==typeof e&&e.RTCPeerConnection&&e.RTCRtpSender)||e.RTCRtpSender&&"getStats"in e.RTCRtpReceiver.prototype)return;let t=e.RTCPeerConnection.prototype.getReceivers;t&&(e.RTCPeerConnection.prototype.getReceivers=function(){let e=t.apply(this,[]);return e.forEach(e=>e._pc=this),e}),l(e,"track",e=>(e.receiver._pc=e.srcElement,e)),e.RTCRtpReceiver.prototype.getStats=function(){return this._pc.getStats(this.track)}}function A(e){!e.RTCPeerConnection||"removeStream"in e.RTCPeerConnection.prototype||(e.RTCPeerConnection.prototype.removeStream=function(e){m("removeStream","removeTrack"),this.getSenders().forEach(t=>{t.track&&e.getTracks().includes(t.track)&&this.removeTrack(t)})})}function j(e){e.DataChannel&&!e.RTCDataChannel&&(e.RTCDataChannel=e.DataChannel)}function B(e){if(!("object"==typeof e&&e.RTCPeerConnection))return;let t=e.RTCPeerConnection.prototype.addTransceiver;t&&(e.RTCPeerConnection.prototype.addTransceiver=function(){this.setParametersPromises=[];let e=arguments[1]&&arguments[1].sendEncodings;void 0===e&&(e=[]);let n=(e=[...e]).length>0;n&&e.forEach(e=>{if("rid"in e&&!/^[a-z0-9]{0,16}$/i.test(e.rid))throw TypeError("Invalid RID value provided.");if("scaleResolutionDownBy"in e&&!(parseFloat(e.scaleResolutionDownBy)>=1))throw RangeError("scale_resolution_down_by must be >= 1.0");if("maxFramerate"in e&&!(parseFloat(e.maxFramerate)>=0))throw RangeError("max_framerate must be >= 0.0")});let r=t.apply(this,arguments);if(n){let{sender:t}=r,n=t.getParameters();"encodings"in n&&(1!==n.encodings.length||0!==Object.keys(n.encodings[0]).length)||(n.encodings=e,t.sendEncodings=e,this.setParametersPromises.push(t.setParameters(n).then(()=>{delete t.sendEncodings}).catch(()=>{delete t.sendEncodings})))}return r})}function U(e){if(!("object"==typeof e&&e.RTCRtpSender))return;let t=e.RTCRtpSender.prototype.getParameters;t&&(e.RTCRtpSender.prototype.getParameters=function(){let e=t.apply(this,arguments);return"encodings"in e||(e.encodings=[].concat(this.sendEncodings||[{}])),e})}function F(e){if(!("object"==typeof e&&e.RTCPeerConnection))return;let t=e.RTCPeerConnection.prototype.createOffer;e.RTCPeerConnection.prototype.createOffer=function(){return this.setParametersPromises&&this.setParametersPromises.length?Promise.all(this.setParametersPromises).then(()=>t.apply(this,arguments)).finally(()=>{this.setParametersPromises=[]}):t.apply(this,arguments)}}function N(e){if(!("object"==typeof e&&e.RTCPeerConnection))return;let t=e.RTCPeerConnection.prototype.createAnswer;e.RTCPeerConnection.prototype.createAnswer=function(){return this.setParametersPromises&&this.setParametersPromises.length?Promise.all(this.setParametersPromises).then(()=>t.apply(this,arguments)).finally(()=>{this.setParametersPromises=[]}):t.apply(this,arguments)}}"use strict";e(E,"shimOnTrack",()=>I),e(E,"shimPeerConnection",()=>M),e(E,"shimSenderGetStats",()=>O),e(E,"shimReceiverGetStats",()=>L),e(E,"shimRemoveStream",()=>A),e(E,"shimRTCDataChannel",()=>j),e(E,"shimAddTransceiver",()=>B),e(E,"shimGetParameters",()=>U),e(E,"shimCreateOffer",()=>F),e(E,"shimCreateAnswer",()=>N),e(E,"shimGetUserMedia",()=>x),e(E,"shimGetDisplayMedia",()=>D);var z={};function $(e){if("object"==typeof e&&e.RTCPeerConnection){if("getLocalStreams"in e.RTCPeerConnection.prototype||(e.RTCPeerConnection.prototype.getLocalStreams=function(){return this._localStreams||(this._localStreams=[]),this._localStreams}),!("addStream"in e.RTCPeerConnection.prototype)){let t=e.RTCPeerConnection.prototype.addTrack;e.RTCPeerConnection.prototype.addStream=function(e){this._localStreams||(this._localStreams=[]),this._localStreams.includes(e)||this._localStreams.push(e),e.getAudioTracks().forEach(n=>t.call(this,n,e)),e.getVideoTracks().forEach(n=>t.call(this,n,e))},e.RTCPeerConnection.prototype.addTrack=function(e,...n){return n&&n.forEach(e=>{this._localStreams?this._localStreams.includes(e)||this._localStreams.push(e):this._localStreams=[e]}),t.apply(this,arguments)}}"removeStream"in e.RTCPeerConnection.prototype||(e.RTCPeerConnection.prototype.removeStream=function(e){this._localStreams||(this._localStreams=[]);let t=this._localStreams.indexOf(e);if(-1===t)return;this._localStreams.splice(t,1);let n=e.getTracks();this.getSenders().forEach(e=>{n.includes(e.track)&&this.removeTrack(e)})})}}function V(e){if("object"==typeof e&&e.RTCPeerConnection&&("getRemoteStreams"in e.RTCPeerConnection.prototype||(e.RTCPeerConnection.prototype.getRemoteStreams=function(){return this._remoteStreams?this._remoteStreams:[]}),!("onaddstream"in e.RTCPeerConnection.prototype))){Object.defineProperty(e.RTCPeerConnection.prototype,"onaddstream",{get(){return this._onaddstream},set(e){this._onaddstream&&(this.removeEventListener("addstream",this._onaddstream),this.removeEventListener("track",this._onaddstreampoly)),this.addEventListener("addstream",this._onaddstream=e),this.addEventListener("track",this._onaddstreampoly=e=>{e.streams.forEach(e=>{if(this._remoteStreams||(this._remoteStreams=[]),this._remoteStreams.includes(e))return;this._remoteStreams.push(e);let t=new Event("addstream");t.stream=e,this.dispatchEvent(t)})})}});let t=e.RTCPeerConnection.prototype.setRemoteDescription;e.RTCPeerConnection.prototype.setRemoteDescription=function(){let e=this;return this._onaddstreampoly||this.addEventListener("track",this._onaddstreampoly=function(t){t.streams.forEach(t=>{if(e._remoteStreams||(e._remoteStreams=[]),e._remoteStreams.indexOf(t)>=0)return;e._remoteStreams.push(t);let n=new Event("addstream");n.stream=t,e.dispatchEvent(n)})}),t.apply(e,arguments)}}}function G(e){if("object"!=typeof e||!e.RTCPeerConnection)return;let t=e.RTCPeerConnection.prototype,n=t.createOffer,r=t.createAnswer,i=t.setLocalDescription,s=t.setRemoteDescription,o=t.addIceCandidate;t.createOffer=function(e,t){let r=arguments.length>=2?arguments[2]:arguments[0],i=n.apply(this,[r]);return t?(i.then(e,t),Promise.resolve()):i},t.createAnswer=function(e,t){let n=arguments.length>=2?arguments[2]:arguments[0],i=r.apply(this,[n]);return t?(i.then(e,t),Promise.resolve()):i};let a=function(e,t,n){let r=i.apply(this,[e]);return n?(r.then(t,n),Promise.resolve()):r};t.setLocalDescription=a,t.setRemoteDescription=a=function(e,t,n){let r=s.apply(this,[e]);return n?(r.then(t,n),Promise.resolve()):r},t.addIceCandidate=function(e,t,n){let r=o.apply(this,[e]);return n?(r.then(t,n),Promise.resolve()):r}}function J(e){let t=e&&e.navigator;if(t.mediaDevices&&t.mediaDevices.getUserMedia){let e=t.mediaDevices,n=e.getUserMedia.bind(e);t.mediaDevices.getUserMedia=e=>n(W(e))}!t.getUserMedia&&t.mediaDevices&&t.mediaDevices.getUserMedia&&(t.getUserMedia=(function(e,n,r){t.mediaDevices.getUserMedia(e).then(n,r)}).bind(t))}function W(e){return e&&void 0!==e.video?Object.assign({},e,{video:function e(t){return _(t)?Object.keys(t).reduce(function(n,r){let i=_(t[r]),s=i?e(t[r]):t[r],o=i&&!Object.keys(s).length;return void 0===s||o?n:Object.assign(n,{[r]:s})},{}):t}(e.video)}):e}function Y(e){if(!e.RTCPeerConnection)return;let t=e.RTCPeerConnection;e.RTCPeerConnection=function(e,n){if(e&&e.iceServers){let t=[];for(let n=0;n<e.iceServers.length;n++){let r=e.iceServers[n];void 0===r.urls&&r.url?(m("RTCIceServer.url","RTCIceServer.urls"),(r=JSON.parse(JSON.stringify(r))).urls=r.url,delete r.url,t.push(r)):t.push(e.iceServers[n])}e.iceServers=t}return new t(e,n)},e.RTCPeerConnection.prototype=t.prototype,"generateCertificate"in t&&Object.defineProperty(e.RTCPeerConnection,"generateCertificate",{get:()=>t.generateCertificate})}function H(e){"object"==typeof e&&e.RTCTrackEvent&&"receiver"in e.RTCTrackEvent.prototype&&!("transceiver"in e.RTCTrackEvent.prototype)&&Object.defineProperty(e.RTCTrackEvent.prototype,"transceiver",{get(){return{receiver:this.receiver}}})}function K(e){let t=e.RTCPeerConnection.prototype.createOffer;e.RTCPeerConnection.prototype.createOffer=function(e){if(e){void 0!==e.offerToReceiveAudio&&(e.offerToReceiveAudio=!!e.offerToReceiveAudio);let t=this.getTransceivers().find(e=>"audio"===e.receiver.track.kind);!1===e.offerToReceiveAudio&&t?"sendrecv"===t.direction?t.setDirection?t.setDirection("sendonly"):t.direction="sendonly":"recvonly"===t.direction&&(t.setDirection?t.setDirection("inactive"):t.direction="inactive"):!0!==e.offerToReceiveAudio||t||this.addTransceiver("audio",{direction:"recvonly"}),void 0!==e.offerToReceiveVideo&&(e.offerToReceiveVideo=!!e.offerToReceiveVideo);let n=this.getTransceivers().find(e=>"video"===e.receiver.track.kind);!1===e.offerToReceiveVideo&&n?"sendrecv"===n.direction?n.setDirection?n.setDirection("sendonly"):n.direction="sendonly":"recvonly"===n.direction&&(n.setDirection?n.setDirection("inactive"):n.direction="inactive"):!0!==e.offerToReceiveVideo||n||this.addTransceiver("video",{direction:"recvonly"})}return t.apply(this,arguments)}}function X(e){"object"!=typeof e||e.AudioContext||(e.AudioContext=e.webkitAudioContext)}e(z,"shimLocalStreamsAPI",()=>$),e(z,"shimRemoteStreamsAPI",()=>V),e(z,"shimCallbacksAPI",()=>G),e(z,"shimGetUserMedia",()=>J),e(z,"shimConstraints",()=>W),e(z,"shimRTCIceServerUrls",()=>Y),e(z,"shimTrackEventTransceiver",()=>H),e(z,"shimCreateOfferLegacy",()=>K),e(z,"shimAudioContext",()=>X);var Q={};"use strict";e(Q,"shimRTCIceCandidate",()=>ee),e(Q,"shimRTCIceCandidateRelayProtocol",()=>et),e(Q,"shimMaxMessageSize",()=>en),e(Q,"shimSendThrowTypeError",()=>er),e(Q,"shimConnectionState",()=>ei),e(Q,"removeExtmapAllowMixed",()=>es),e(Q,"shimAddIceCandidateNullOrEmpty",()=>eo),e(Q,"shimParameterlessSetLocalDescription",()=>ea);var q={};"use strict";let Z={};function ee(e){if(!e.RTCIceCandidate||e.RTCIceCandidate&&"foundation"in e.RTCIceCandidate.prototype)return;let n=e.RTCIceCandidate;e.RTCIceCandidate=function(e){if("object"==typeof e&&e.candidate&&0===e.candidate.indexOf("a=")&&((e=JSON.parse(JSON.stringify(e))).candidate=e.candidate.substring(2)),e.candidate&&e.candidate.length){let r=new n(e),i=t(q).parseCandidate(e.candidate);for(let e in i)e in r||Object.defineProperty(r,e,{value:i[e]});return r.toJSON=function(){return{candidate:r.candidate,sdpMid:r.sdpMid,sdpMLineIndex:r.sdpMLineIndex,usernameFragment:r.usernameFragment}},r}return new n(e)},e.RTCIceCandidate.prototype=n.prototype,l(e,"icecandidate",t=>(t.candidate&&Object.defineProperty(t,"candidate",{value:new e.RTCIceCandidate(t.candidate),writable:"false"}),t))}function et(e){!e.RTCIceCandidate||e.RTCIceCandidate&&"relayProtocol"in e.RTCIceCandidate.prototype||l(e,"icecandidate",e=>{if(e.candidate){let n=t(q).parseCandidate(e.candidate.candidate);"relay"===n.type&&(e.candidate.relayProtocol=({0:"tls",1:"tcp",2:"udp"})[n.priority>>24])}return e})}function en(e,n){if(!e.RTCPeerConnection)return;"sctp"in e.RTCPeerConnection.prototype||Object.defineProperty(e.RTCPeerConnection.prototype,"sctp",{get(){return void 0===this._sctp?null:this._sctp}});let r=function(e){if(!e||!e.sdp)return!1;let n=t(q).splitSections(e.sdp);return n.shift(),n.some(e=>{let n=t(q).parseMLine(e);return n&&"application"===n.kind&&-1!==n.protocol.indexOf("SCTP")})},i=function(e){let t=e.sdp.match(/mozilla...THIS_IS_SDPARTA-(\d+)/);if(null===t||t.length<2)return -1;let n=parseInt(t[1],10);return n!=n?-1:n},s=function(e){let t=65536;return"firefox"===n.browser&&(t=n.version<57?-1===e?16384:0x7ffffff5:n.version<60?57===n.version?65535:65536:0x7ffffff5),t},o=function(e,r){let i=65536;"firefox"===n.browser&&57===n.version&&(i=65535);let s=t(q).matchPrefix(e.sdp,"a=max-message-size:");return s.length>0?i=parseInt(s[0].substring(19),10):"firefox"===n.browser&&-1!==r&&(i=0x7ffffff5),i},a=e.RTCPeerConnection.prototype.setRemoteDescription;e.RTCPeerConnection.prototype.setRemoteDescription=function(){if(this._sctp=null,"chrome"===n.browser&&n.version>=76){let{sdpSemantics:e}=this.getConfiguration();"plan-b"===e&&Object.defineProperty(this,"sctp",{get(){return void 0===this._sctp?null:this._sctp},enumerable:!0,configurable:!0})}if(r(arguments[0])){let e,t=i(arguments[0]),n=s(t),r=o(arguments[0],t);e=0===n&&0===r?Number.POSITIVE_INFINITY:0===n||0===r?Math.max(n,r):Math.min(n,r);let a={};Object.defineProperty(a,"maxMessageSize",{get:()=>e}),this._sctp=a}return a.apply(this,arguments)}}function er(e){if(!(e.RTCPeerConnection&&"createDataChannel"in e.RTCPeerConnection.prototype))return;function t(e,t){let n=e.send;e.send=function(){let r=arguments[0],i=r.length||r.size||r.byteLength;if("open"===e.readyState&&t.sctp&&i>t.sctp.maxMessageSize)throw TypeError("Message too large (can send a maximum of "+t.sctp.maxMessageSize+" bytes)");return n.apply(e,arguments)}}let n=e.RTCPeerConnection.prototype.createDataChannel;e.RTCPeerConnection.prototype.createDataChannel=function(){let e=n.apply(this,arguments);return t(e,this),e},l(e,"datachannel",e=>(t(e.channel,e.target),e))}function ei(e){if(!e.RTCPeerConnection||"connectionState"in e.RTCPeerConnection.prototype)return;let t=e.RTCPeerConnection.prototype;Object.defineProperty(t,"connectionState",{get(){return({completed:"connected",checking:"connecting"})[this.iceConnectionState]||this.iceConnectionState},enumerable:!0,configurable:!0}),Object.defineProperty(t,"onconnectionstatechange",{get(){return this._onconnectionstatechange||null},set(e){this._onconnectionstatechange&&(this.removeEventListener("connectionstatechange",this._onconnectionstatechange),delete this._onconnectionstatechange),e&&this.addEventListener("connectionstatechange",this._onconnectionstatechange=e)},enumerable:!0,configurable:!0}),["setLocalDescription","setRemoteDescription"].forEach(e=>{let n=t[e];t[e]=function(){return this._connectionstatechangepoly||(this._connectionstatechangepoly=e=>{let t=e.target;if(t._lastConnectionState!==t.connectionState){t._lastConnectionState=t.connectionState;let n=new Event("connectionstatechange",e);t.dispatchEvent(n)}return e},this.addEventListener("iceconnectionstatechange",this._connectionstatechangepoly)),n.apply(this,arguments)}})}function es(e,t){if(!e.RTCPeerConnection||"chrome"===t.browser&&t.version>=71||"safari"===t.browser&&t.version>=605)return;let n=e.RTCPeerConnection.prototype.setRemoteDescription;e.RTCPeerConnection.prototype.setRemoteDescription=function(t){if(t&&t.sdp&&-1!==t.sdp.indexOf("\na=extmap-allow-mixed")){let n=t.sdp.split("\n").filter(e=>"a=extmap-allow-mixed"!==e.trim()).join("\n");e.RTCSessionDescription&&t instanceof e.RTCSessionDescription?arguments[0]=new e.RTCSessionDescription({type:t.type,sdp:n}):t.sdp=n}return n.apply(this,arguments)}}function eo(e,t){if(!(e.RTCPeerConnection&&e.RTCPeerConnection.prototype))return;let n=e.RTCPeerConnection.prototype.addIceCandidate;n&&0!==n.length&&(e.RTCPeerConnection.prototype.addIceCandidate=function(){return arguments[0]?("chrome"===t.browser&&t.version<78||"firefox"===t.browser&&t.version<68||"safari"===t.browser)&&arguments[0]&&""===arguments[0].candidate?Promise.resolve():n.apply(this,arguments):(arguments[1]&&arguments[1].apply(null),Promise.resolve())})}function ea(e,t){if(!(e.RTCPeerConnection&&e.RTCPeerConnection.prototype))return;let n=e.RTCPeerConnection.prototype.setLocalDescription;n&&0!==n.length&&(e.RTCPeerConnection.prototype.setLocalDescription=function(){let e=arguments[0]||{};if("object"!=typeof e||e.type&&e.sdp)return n.apply(this,arguments);if(!(e={type:e.type,sdp:e.sdp}).type)switch(this.signalingState){case"stable":case"have-local-offer":case"have-remote-pranswer":e.type="offer";break;default:e.type="answer"}return e.sdp||"offer"!==e.type&&"answer"!==e.type?n.apply(this,[e]):("offer"===e.type?this.createOffer:this.createAnswer).apply(this).then(e=>n.apply(this,[e]))})}"use strict";Z.generateIdentifier=function(){return Math.random().toString(36).substring(2,12)},Z.localCName=Z.generateIdentifier(),Z.splitLines=function(e){return e.trim().split("\n").map(e=>e.trim())},Z.splitSections=function(e){return e.split("\nm=").map((e,t)=>(t>0?"m="+e:e).trim()+"\r\n")},Z.getDescription=function(e){let t=Z.splitSections(e);return t&&t[0]},Z.getMediaSections=function(e){let t=Z.splitSections(e);return t.shift(),t},Z.matchPrefix=function(e,t){return Z.splitLines(e).filter(e=>0===e.indexOf(t))},Z.parseCandidate=function(e){let t,n={foundation:(t=0===e.indexOf("a=candidate:")?e.substring(12).split(" "):e.substring(10).split(" "))[0],component:{1:"rtp",2:"rtcp"}[t[1]]||t[1],protocol:t[2].toLowerCase(),priority:parseInt(t[3],10),ip:t[4],address:t[4],port:parseInt(t[5],10),type:t[7]};for(let e=8;e<t.length;e+=2)switch(t[e]){case"raddr":n.relatedAddress=t[e+1];break;case"rport":n.relatedPort=parseInt(t[e+1],10);break;case"tcptype":n.tcpType=t[e+1];break;case"ufrag":n.ufrag=t[e+1],n.usernameFragment=t[e+1];break;default:void 0===n[t[e]]&&(n[t[e]]=t[e+1])}return n},Z.writeCandidate=function(e){let t=[];t.push(e.foundation);let n=e.component;"rtp"===n?t.push(1):"rtcp"===n?t.push(2):t.push(n),t.push(e.protocol.toUpperCase()),t.push(e.priority),t.push(e.address||e.ip),t.push(e.port);let r=e.type;return t.push("typ"),t.push(r),"host"!==r&&e.relatedAddress&&e.relatedPort&&(t.push("raddr"),t.push(e.relatedAddress),t.push("rport"),t.push(e.relatedPort)),e.tcpType&&"tcp"===e.protocol.toLowerCase()&&(t.push("tcptype"),t.push(e.tcpType)),(e.usernameFragment||e.ufrag)&&(t.push("ufrag"),t.push(e.usernameFragment||e.ufrag)),"candidate:"+t.join(" ")},Z.parseIceOptions=function(e){return e.substring(14).split(" ")},Z.parseRtpMap=function(e){let t=e.substring(9).split(" "),n={payloadType:parseInt(t.shift(),10)};return n.name=(t=t[0].split("/"))[0],n.clockRate=parseInt(t[1],10),n.channels=3===t.length?parseInt(t[2],10):1,n.numChannels=n.channels,n},Z.writeRtpMap=function(e){let t=e.payloadType;void 0!==e.preferredPayloadType&&(t=e.preferredPayloadType);let n=e.channels||e.numChannels||1;return"a=rtpmap:"+t+" "+e.name+"/"+e.clockRate+(1!==n?"/"+n:"")+"\r\n"},Z.parseExtmap=function(e){let t=e.substring(9).split(" ");return{id:parseInt(t[0],10),direction:t[0].indexOf("/")>0?t[0].split("/")[1]:"sendrecv",uri:t[1],attributes:t.slice(2).join(" ")}},Z.writeExtmap=function(e){return"a=extmap:"+(e.id||e.preferredId)+(e.direction&&"sendrecv"!==e.direction?"/"+e.direction:"")+" "+e.uri+(e.attributes?" "+e.attributes:"")+"\r\n"},Z.parseFmtp=function(e){let t,n={},r=e.substring(e.indexOf(" ")+1).split(";");for(let e=0;e<r.length;e++)n[(t=r[e].trim().split("="))[0].trim()]=t[1];return n},Z.writeFmtp=function(e){let t="",n=e.payloadType;if(void 0!==e.preferredPayloadType&&(n=e.preferredPayloadType),e.parameters&&Object.keys(e.parameters).length){let r=[];Object.keys(e.parameters).forEach(t=>{void 0!==e.parameters[t]?r.push(t+"="+e.parameters[t]):r.push(t)}),t+="a=fmtp:"+n+" "+r.join(";")+"\r\n"}return t},Z.parseRtcpFb=function(e){let t=e.substring(e.indexOf(" ")+1).split(" ");return{type:t.shift(),parameter:t.join(" ")}},Z.writeRtcpFb=function(e){let t="",n=e.payloadType;return void 0!==e.preferredPayloadType&&(n=e.preferredPayloadType),e.rtcpFeedback&&e.rtcpFeedback.length&&e.rtcpFeedback.forEach(e=>{t+="a=rtcp-fb:"+n+" "+e.type+(e.parameter&&e.parameter.length?" "+e.parameter:"")+"\r\n"}),t},Z.parseSsrcMedia=function(e){let t=e.indexOf(" "),n={ssrc:parseInt(e.substring(7,t),10)},r=e.indexOf(":",t);return r>-1?(n.attribute=e.substring(t+1,r),n.value=e.substring(r+1)):n.attribute=e.substring(t+1),n},Z.parseSsrcGroup=function(e){let t=e.substring(13).split(" ");return{semantics:t.shift(),ssrcs:t.map(e=>parseInt(e,10))}},Z.getMid=function(e){let t=Z.matchPrefix(e,"a=mid:")[0];if(t)return t.substring(6)},Z.parseFingerprint=function(e){let t=e.substring(14).split(" ");return{algorithm:t[0].toLowerCase(),value:t[1].toUpperCase()}},Z.getDtlsParameters=function(e,t){return{role:"auto",fingerprints:Z.matchPrefix(e+t,"a=fingerprint:").map(Z.parseFingerprint)}},Z.writeDtlsParameters=function(e,t){let n="a=setup:"+t+"\r\n";return e.fingerprints.forEach(e=>{n+="a=fingerprint:"+e.algorithm+" "+e.value+"\r\n"}),n},Z.parseCryptoLine=function(e){let t=e.substring(9).split(" ");return{tag:parseInt(t[0],10),cryptoSuite:t[1],keyParams:t[2],sessionParams:t.slice(3)}},Z.writeCryptoLine=function(e){return"a=crypto:"+e.tag+" "+e.cryptoSuite+" "+("object"==typeof e.keyParams?Z.writeCryptoKeyParams(e.keyParams):e.keyParams)+(e.sessionParams?" "+e.sessionParams.join(" "):"")+"\r\n"},Z.parseCryptoKeyParams=function(e){if(0!==e.indexOf("inline:"))return null;let t=e.substring(7).split("|");return{keyMethod:"inline",keySalt:t[0],lifeTime:t[1],mkiValue:t[2]?t[2].split(":")[0]:void 0,mkiLength:t[2]?t[2].split(":")[1]:void 0}},Z.writeCryptoKeyParams=function(e){return e.keyMethod+":"+e.keySalt+(e.lifeTime?"|"+e.lifeTime:"")+(e.mkiValue&&e.mkiLength?"|"+e.mkiValue+":"+e.mkiLength:"")},Z.getCryptoParameters=function(e,t){return Z.matchPrefix(e+t,"a=crypto:").map(Z.parseCryptoLine)},Z.getIceParameters=function(e,t){let n=Z.matchPrefix(e+t,"a=ice-ufrag:")[0],r=Z.matchPrefix(e+t,"a=ice-pwd:")[0];return n&&r?{usernameFragment:n.substring(12),password:r.substring(10)}:null},Z.writeIceParameters=function(e){let t="a=ice-ufrag:"+e.usernameFragment+"\r\na=ice-pwd:"+e.password+"\r\n";return e.iceLite&&(t+="a=ice-lite\r\n"),t},Z.parseRtpParameters=function(e){let t={codecs:[],headerExtensions:[],fecMechanisms:[],rtcp:[]},n=Z.splitLines(e)[0].split(" ");t.profile=n[2];for(let r=3;r<n.length;r++){let i=n[r],s=Z.matchPrefix(e,"a=rtpmap:"+i+" ")[0];if(s){let n=Z.parseRtpMap(s),r=Z.matchPrefix(e,"a=fmtp:"+i+" ");switch(n.parameters=r.length?Z.parseFmtp(r[0]):{},n.rtcpFeedback=Z.matchPrefix(e,"a=rtcp-fb:"+i+" ").map(Z.parseRtcpFb),t.codecs.push(n),n.name.toUpperCase()){case"RED":case"ULPFEC":t.fecMechanisms.push(n.name.toUpperCase())}}}Z.matchPrefix(e,"a=extmap:").forEach(e=>{t.headerExtensions.push(Z.parseExtmap(e))});let r=Z.matchPrefix(e,"a=rtcp-fb:* ").map(Z.parseRtcpFb);return t.codecs.forEach(e=>{r.forEach(t=>{e.rtcpFeedback.find(e=>e.type===t.type&&e.parameter===t.parameter)||e.rtcpFeedback.push(t)})}),t},Z.writeRtpDescription=function(e,t){let n="";n+="m="+e+" ",n+=t.codecs.length>0?"9":"0",n+=" "+(t.profile||"UDP/TLS/RTP/SAVPF")+" ",n+=t.codecs.map(e=>void 0!==e.preferredPayloadType?e.preferredPayloadType:e.payloadType).join(" ")+"\r\n",n+="c=IN IP4 0.0.0.0\r\n",n+="a=rtcp:9 IN IP4 0.0.0.0\r\n",t.codecs.forEach(e=>{n+=Z.writeRtpMap(e),n+=Z.writeFmtp(e),n+=Z.writeRtcpFb(e)});let r=0;return t.codecs.forEach(e=>{e.maxptime>r&&(r=e.maxptime)}),r>0&&(n+="a=maxptime:"+r+"\r\n"),t.headerExtensions&&t.headerExtensions.forEach(e=>{n+=Z.writeExtmap(e)}),n},Z.parseRtpEncodingParameters=function(e){let t,n=[],r=Z.parseRtpParameters(e),i=-1!==r.fecMechanisms.indexOf("RED"),s=-1!==r.fecMechanisms.indexOf("ULPFEC"),o=Z.matchPrefix(e,"a=ssrc:").map(e=>Z.parseSsrcMedia(e)).filter(e=>"cname"===e.attribute),a=o.length>0&&o[0].ssrc,c=Z.matchPrefix(e,"a=ssrc-group:FID").map(e=>e.substring(17).split(" ").map(e=>parseInt(e,10)));c.length>0&&c[0].length>1&&c[0][0]===a&&(t=c[0][1]),r.codecs.forEach(e=>{if("RTX"===e.name.toUpperCase()&&e.parameters.apt){let r={ssrc:a,codecPayloadType:parseInt(e.parameters.apt,10)};a&&t&&(r.rtx={ssrc:t}),n.push(r),i&&((r=JSON.parse(JSON.stringify(r))).fec={ssrc:a,mechanism:s?"red+ulpfec":"red"},n.push(r))}}),0===n.length&&a&&n.push({ssrc:a});let p=Z.matchPrefix(e,"b=");return p.length&&(p=0===p[0].indexOf("b=TIAS:")?parseInt(p[0].substring(7),10):0===p[0].indexOf("b=AS:")?950*parseInt(p[0].substring(5),10)-16e3:void 0,n.forEach(e=>{e.maxBitrate=p})),n},Z.parseRtcpParameters=function(e){let t={},n=Z.matchPrefix(e,"a=ssrc:").map(e=>Z.parseSsrcMedia(e)).filter(e=>"cname"===e.attribute)[0];n&&(t.cname=n.value,t.ssrc=n.ssrc);let r=Z.matchPrefix(e,"a=rtcp-rsize");return t.reducedSize=r.length>0,t.compound=0===r.length,t.mux=Z.matchPrefix(e,"a=rtcp-mux").length>0,t},Z.writeRtcpParameters=function(e){let t="";return e.reducedSize&&(t+="a=rtcp-rsize\r\n"),e.mux&&(t+="a=rtcp-mux\r\n"),void 0!==e.ssrc&&e.cname&&(t+="a=ssrc:"+e.ssrc+" cname:"+e.cname+"\r\n"),t},Z.parseMsid=function(e){let t,n=Z.matchPrefix(e,"a=msid:");if(1===n.length)return{stream:(t=n[0].substring(7).split(" "))[0],track:t[1]};let r=Z.matchPrefix(e,"a=ssrc:").map(e=>Z.parseSsrcMedia(e)).filter(e=>"msid"===e.attribute);if(r.length>0)return{stream:(t=r[0].value.split(" "))[0],track:t[1]}},Z.parseSctpDescription=function(e){let t,n=Z.parseMLine(e),r=Z.matchPrefix(e,"a=max-message-size:");r.length>0&&(t=parseInt(r[0].substring(19),10)),isNaN(t)&&(t=65536);let i=Z.matchPrefix(e,"a=sctp-port:");if(i.length>0)return{port:parseInt(i[0].substring(12),10),protocol:n.fmt,maxMessageSize:t};let s=Z.matchPrefix(e,"a=sctpmap:");if(s.length>0){let e=s[0].substring(10).split(" ");return{port:parseInt(e[0],10),protocol:e[1],maxMessageSize:t}}},Z.writeSctpDescription=function(e,t){let n=[];return n="DTLS/SCTP"!==e.protocol?["m="+e.kind+" 9 "+e.protocol+" "+t.protocol+"\r\n","c=IN IP4 0.0.0.0\r\n","a=sctp-port:"+t.port+"\r\n"]:["m="+e.kind+" 9 "+e.protocol+" "+t.port+"\r\n","c=IN IP4 0.0.0.0\r\n","a=sctpmap:"+t.port+" "+t.protocol+" 65535\r\n"],void 0!==t.maxMessageSize&&n.push("a=max-message-size:"+t.maxMessageSize+"\r\n"),n.join("")},Z.generateSessionId=function(){return Math.random().toString().substr(2,22)},Z.writeSessionBoilerplate=function(e,t,n){return"v=0\r\no="+(n||"thisisadapterortc")+" "+(e||Z.generateSessionId())+" "+(void 0!==t?t:2)+" IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n"},Z.getDirection=function(e,t){let n=Z.splitLines(e);for(let e=0;e<n.length;e++)switch(n[e]){case"a=sendrecv":case"a=sendonly":case"a=recvonly":case"a=inactive":return n[e].substring(2)}return t?Z.getDirection(t):"sendrecv"},Z.getKind=function(e){return Z.splitLines(e)[0].split(" ")[0].substring(2)},Z.isRejected=function(e){return"0"===e.split(" ",2)[1]},Z.parseMLine=function(e){let t=Z.splitLines(e)[0].substring(2).split(" ");return{kind:t[0],port:parseInt(t[1],10),protocol:t[2],fmt:t.slice(3).join(" ")}},Z.parseOLine=function(e){let t=Z.matchPrefix(e,"o=")[0].substring(2).split(" ");return{username:t[0],sessionId:t[1],sessionVersion:parseInt(t[2],10),netType:t[3],addressType:t[4],address:t[5]}},Z.isValidSDP=function(e){if("string"!=typeof e||0===e.length)return!1;let t=Z.splitLines(e);for(let e=0;e<t.length;e++)if(t[e].length<2||"="!==t[e].charAt(1))return!1;return!0},q=Z;let ec=function({window:e}={},t={shimChrome:!0,shimFirefox:!0,shimSafari:!0}){let n=function(e){let t={browser:null,version:null};if(void 0===e||!e.navigator||!e.navigator.userAgent)return t.browser="Not a browser.",t;let{navigator:n}=e;if(n.userAgentData&&n.userAgentData.brands){let e=n.userAgentData.brands.find(e=>"Chromium"===e.brand);if(e)return{browser:"chrome",version:parseInt(e.version,10)}}return n.mozGetUserMedia?(t.browser="firefox",t.version=d(n.userAgent,/Firefox\/(\d+)\./,1)):n.webkitGetUserMedia||!1===e.isSecureContext&&e.webkitRTCPeerConnection?(t.browser="chrome",t.version=d(n.userAgent,/Chrom(e|ium)\/(\d+)\./,2)):e.RTCPeerConnection&&n.userAgent.match(/AppleWebKit\/(\d+)\./)?(t.browser="safari",t.version=d(n.userAgent,/AppleWebKit\/(\d+)\./,1),t.supportsUnifiedPlan=e.RTCRtpTransceiver&&"currentDirection"in e.RTCRtpTransceiver.prototype):t.browser="Not a supported browser.",t}(e),r={browserDetails:n,commonShim:Q,extractVersion:d,disableLog:h,disableWarnings:u,sdp:q};switch(n.browser){case"chrome":if(!y||!y.shimPeerConnection||!t.shimChrome){f("Chrome shim is not included in this adapter release.");break}if(null===n.version){f("Chrome shim can not determine version, not shimming.");break}f("adapter.js shimming chrome."),r.browserShim=y,eo(e,n),ea(e,n),y.shimGetUserMedia(e,n),y.shimMediaStream(e,n),y.shimPeerConnection(e,n),y.shimOnTrack(e,n),y.shimAddTrackRemoveTrack(e,n),y.shimGetSendersWithDtmf(e,n),y.shimSenderReceiverGetStats(e,n),y.fixNegotiationNeeded(e,n),ee(e,n),et(e,n),ei(e,n),en(e,n),er(e,n),es(e,n);break;case"firefox":if(!E||!E.shimPeerConnection||!t.shimFirefox){f("Firefox shim is not included in this adapter release.");break}f("adapter.js shimming firefox."),r.browserShim=E,eo(e,n),ea(e,n),E.shimGetUserMedia(e,n),E.shimPeerConnection(e,n),E.shimOnTrack(e,n),E.shimRemoveStream(e,n),E.shimSenderGetStats(e,n),E.shimReceiverGetStats(e,n),E.shimRTCDataChannel(e,n),E.shimAddTransceiver(e,n),E.shimGetParameters(e,n),E.shimCreateOffer(e,n),E.shimCreateAnswer(e,n),ee(e,n),ei(e,n),en(e,n),er(e,n);break;case"safari":if(!z||!t.shimSafari){f("Safari shim is not included in this adapter release.");break}f("adapter.js shimming safari."),r.browserShim=z,eo(e,n),ea(e,n),z.shimRTCIceServerUrls(e,n),z.shimCreateOfferLegacy(e,n),z.shimCallbacksAPI(e,n),z.shimLocalStreamsAPI(e,n),z.shimRemoteStreamsAPI(e,n),z.shimTrackEventTransceiver(e,n),z.shimGetUserMedia(e,n),z.shimAudioContext(e,n),ee(e,n),et(e,n),en(e,n),er(e,n),es(e,n);break;default:f("Unsupported browser!")}return r}({window:"undefined"==typeof window?void 0:window}),ep=ec.default||ec,ed=new class{isWebRTCSupported(){return"undefined"!=typeof RTCPeerConnection}isBrowserSupported(){let e=this.getBrowser(),t=this.getVersion();return!!this.supportedBrowsers.includes(e)&&("chrome"===e?t>=this.minChromeVersion:"firefox"===e?t>=this.minFirefoxVersion:"safari"===e&&!this.isIOS&&t>=this.minSafariVersion)}getBrowser(){return ep.browserDetails.browser}getVersion(){return ep.browserDetails.version||0}isUnifiedPlanSupported(){let e,t=this.getBrowser(),n=ep.browserDetails.version||0;if("chrome"===t&&n<this.minChromeVersion)return!1;if("firefox"===t&&n>=this.minFirefoxVersion)return!0;if(!window.RTCRtpTransceiver||!("currentDirection"in RTCRtpTransceiver.prototype))return!1;let r=!1;try{(e=new RTCPeerConnection).addTransceiver("audio"),r=!0}catch(e){}finally{e&&e.close()}return r}toString(){return`Supports:
+    browser:${this.getBrowser()}
+    version:${this.getVersion()}
+    isIOS:${this.isIOS}
+    isWebRTCSupported:${this.isWebRTCSupported()}
+    isBrowserSupported:${this.isBrowserSupported()}
+    isUnifiedPlanSupported:${this.isUnifiedPlanSupported()}`}constructor(){this.isIOS="undefined"!=typeof navigator&&["iPad","iPhone","iPod"].includes(navigator.platform),this.supportedBrowsers=["firefox","chrome","safari"],this.minFirefoxVersion=59,this.minChromeVersion=72,this.minSafariVersion=605}},el=e=>!e||/^[A-Za-z0-9]+(?:[ _-][A-Za-z0-9]+)*$/.test(e),eh=()=>Math.random().toString(36).slice(2),eu={iceServers:[{urls:"stun:stun.l.google.com:19302"},{urls:["turn:eu-0.turn.peerjs.com:3478","turn:us-0.turn.peerjs.com:3478"],username:"peerjs",credential:"peerjsp"}],sdpSemantics:"unified-plan"},ef=new class extends n{noop(){}blobToArrayBuffer(e,t){let n=new FileReader;return n.onload=function(e){e.target&&t(e.target.result)},n.readAsArrayBuffer(e),n}binaryStringToArrayBuffer(e){let t=new Uint8Array(e.length);for(let n=0;n<e.length;n++)t[n]=255&e.charCodeAt(n);return t.buffer}isSecure(){return"https:"===location.protocol}constructor(...e){super(...e),this.CLOUD_HOST="0.peerjs.com",this.CLOUD_PORT=443,this.chunkedBrowsers={Chrome:1,chrome:1},this.defaultConfig=eu,this.browser=ed.getBrowser(),this.browserVersion=ed.getVersion(),this.pack=s,this.unpack=i,this.supports=function(){let e,t={browser:ed.isBrowserSupported(),webRTC:ed.isWebRTCSupported(),audioVideo:!1,data:!1,binaryBlob:!1,reliable:!1};if(!t.webRTC)return t;try{let n;e=new RTCPeerConnection(eu),t.audioVideo=!0;try{n=e.createDataChannel("_PEERJSTEST",{ordered:!0}),t.data=!0,t.reliable=!!n.ordered;try{n.binaryType="blob",t.binaryBlob=!ed.isIOS}catch(e){}}catch(e){}finally{n&&n.close()}}catch(e){}finally{e&&e.close()}return t}(),this.validateId=el,this.randomToken=eh}};"use strict";var em=new class{get logLevel(){return this._logLevel}set logLevel(e){this._logLevel=e}log(...e){this._logLevel>=3&&this._print(3,...e)}warn(...e){this._logLevel>=2&&this._print(2,...e)}error(...e){this._logLevel>=1&&this._print(1,...e)}setLogFunction(e){this._print=e}_print(e,...t){let n=["PeerJS: ",...t];for(let e in n)n[e]instanceof Error&&(n[e]="("+n[e].name+") "+n[e].message);e>=3?console.log(...n):e>=2?console.warn("WARNING",...n):e>=1&&console.error("ERROR",...n)}constructor(){this._logLevel=0}},e_={},eg=Object.prototype.hasOwnProperty,ey="~";function eC(){}function ev(e,t,n){this.fn=e,this.context=t,this.once=n||!1}function eb(e,t,n,r,i){if("function"!=typeof n)throw TypeError("The listener must be a function");var s=new ev(n,r||e,i),o=ey?ey+t:t;return e._events[o]?e._events[o].fn?e._events[o]=[e._events[o],s]:e._events[o].push(s):(e._events[o]=s,e._eventsCount++),e}function eT(e,t){0==--e._eventsCount?e._events=new eC:delete e._events[t]}function eS(){this._events=new eC,this._eventsCount=0}Object.create&&(eC.prototype=Object.create(null),new eC().__proto__||(ey=!1)),eS.prototype.eventNames=function(){var e,t,n=[];if(0===this._eventsCount)return n;for(t in e=this._events)eg.call(e,t)&&n.push(ey?t.slice(1):t);return Object.getOwnPropertySymbols?n.concat(Object.getOwnPropertySymbols(e)):n},eS.prototype.listeners=function(e){var t=ey?ey+e:e,n=this._events[t];if(!n)return[];if(n.fn)return[n.fn];for(var r=0,i=n.length,s=Array(i);r<i;r++)s[r]=n[r].fn;return s},eS.prototype.listenerCount=function(e){var t=ey?ey+e:e,n=this._events[t];return n?n.fn?1:n.length:0},eS.prototype.emit=function(e,t,n,r,i,s){var o=ey?ey+e:e;if(!this._events[o])return!1;var a,c,p=this._events[o],d=arguments.length;if(p.fn){switch(p.once&&this.removeListener(e,p.fn,void 0,!0),d){case 1:return p.fn.call(p.context),!0;case 2:return p.fn.call(p.context,t),!0;case 3:return p.fn.call(p.context,t,n),!0;case 4:return p.fn.call(p.context,t,n,r),!0;case 5:return p.fn.call(p.context,t,n,r,i),!0;case 6:return p.fn.call(p.context,t,n,r,i,s),!0}for(c=1,a=Array(d-1);c<d;c++)a[c-1]=arguments[c];p.fn.apply(p.context,a)}else{var l,h=p.length;for(c=0;c<h;c++)switch(p[c].once&&this.removeListener(e,p[c].fn,void 0,!0),d){case 1:p[c].fn.call(p[c].context);break;case 2:p[c].fn.call(p[c].context,t);break;case 3:p[c].fn.call(p[c].context,t,n);break;case 4:p[c].fn.call(p[c].context,t,n,r);break;default:if(!a)for(l=1,a=Array(d-1);l<d;l++)a[l-1]=arguments[l];p[c].fn.apply(p[c].context,a)}}return!0},eS.prototype.on=function(e,t,n){return eb(this,e,t,n,!1)},eS.prototype.once=function(e,t,n){return eb(this,e,t,n,!0)},eS.prototype.removeListener=function(e,t,n,r){var i=ey?ey+e:e;if(!this._events[i])return this;if(!t)return eT(this,i),this;var s=this._events[i];if(s.fn)s.fn!==t||r&&!s.once||n&&s.context!==n||eT(this,i);else{for(var o=0,a=[],c=s.length;o<c;o++)(s[o].fn!==t||r&&!s[o].once||n&&s[o].context!==n)&&a.push(s[o]);a.length?this._events[i]=1===a.length?a[0]:a:eT(this,i)}return this},eS.prototype.removeAllListeners=function(e){var t;return e?(t=ey?ey+e:e,this._events[t]&&eT(this,t)):(this._events=new eC,this._eventsCount=0),this},eS.prototype.off=eS.prototype.removeListener,eS.prototype.addListener=eS.prototype.on,eS.prefixed=ey,eS.EventEmitter=eS,e_=eS;var ek=function(e){return e.Data="data",e.Media="media",e}({}),eR=function(e){return e.BrowserIncompatible="browser-incompatible",e.Disconnected="disconnected",e.InvalidID="invalid-id",e.InvalidKey="invalid-key",e.Network="network",e.PeerUnavailable="peer-unavailable",e.SslUnavailable="ssl-unavailable",e.ServerError="server-error",e.SocketError="socket-error",e.SocketClosed="socket-closed",e.UnavailableID="unavailable-id",e.WebRTC="webrtc",e}({}),eP=function(e){return e.NegotiationFailed="negotiation-failed",e.ConnectionClosed="connection-closed",e}({}),ew=function(e){return e.NotOpenYet="not-open-yet",e.MessageToBig="message-too-big",e}({}),eE=function(e){return e.Binary="binary",e.BinaryUTF8="binary-utf8",e.JSON="json",e.None="raw",e}({}),ex=function(e){return e.Message="message",e.Disconnected="disconnected",e.Error="error",e.Close="close",e}({}),eD=function(e){return e.Heartbeat="HEARTBEAT",e.Candidate="CANDIDATE",e.Offer="OFFER",e.Answer="ANSWER",e.Open="OPEN",e.Error="ERROR",e.IdTaken="ID-TAKEN",e.InvalidKey="INVALID-KEY",e.Leave="LEAVE",e.Expire="EXPIRE",e}({});let eI="1.5.5";class eM extends e_.EventEmitter{start(e,t){this._id=e;let n=`${this._baseUrl}&id=${e}&token=${t}`;!this._socket&&this._disconnected&&(this._socket=new WebSocket(n+"&version="+eI),this._disconnected=!1,this._socket.onmessage=e=>{let t;try{t=JSON.parse(e.data),em.log("Server message received:",t)}catch(t){em.log("Invalid server message",e.data);return}this.emit(ex.Message,t)},this._socket.onclose=e=>{this._disconnected||(em.log("Socket closed.",e),this._cleanup(),this._disconnected=!0,this.emit(ex.Disconnected))},this._socket.onopen=()=>{this._disconnected||(this._sendQueuedMessages(),em.log("Socket open"),this._scheduleHeartbeat())})}_scheduleHeartbeat(){this._wsPingTimer=setTimeout(()=>{this._sendHeartbeat()},this.pingInterval)}_sendHeartbeat(){if(!this._wsOpen())return void em.log("Cannot send heartbeat, because socket closed");let e=JSON.stringify({type:eD.Heartbeat});this._socket.send(e),this._scheduleHeartbeat()}_wsOpen(){return!!this._socket&&1===this._socket.readyState}_sendQueuedMessages(){let e=[...this._messagesQueue];for(let t of(this._messagesQueue=[],e))this.send(t)}send(e){if(this._disconnected)return;if(!this._id)return void this._messagesQueue.push(e);if(!e.type)return void this.emit(ex.Error,"Invalid message");if(!this._wsOpen())return;let t=JSON.stringify(e);this._socket.send(t)}close(){this._disconnected||(this._cleanup(),this._disconnected=!0)}_cleanup(){this._socket&&(this._socket.onopen=this._socket.onmessage=this._socket.onclose=null,this._socket.close(),this._socket=void 0),clearTimeout(this._wsPingTimer)}constructor(e,t,n,r,i,s=5e3){super(),this.pingInterval=s,this._disconnected=!0,this._messagesQueue=[],this._baseUrl=(e?"wss://":"ws://")+t+":"+n+r+"peerjs?key="+i}}class eO{startConnection(e){let t=this._startPeerConnection();if(this.connection.peerConnection=t,this.connection.type===ek.Media&&e._stream&&this._addTracksToConnection(e._stream,t),e.originator){let n=this.connection,r={ordered:!!e.reliable},i=t.createDataChannel(n.label,r);n._initializeDataChannel(i),this._makeOffer()}else this.handleSDP("OFFER",e.sdp)}_startPeerConnection(){em.log("Creating RTCPeerConnection.");let e=new RTCPeerConnection(this.connection.provider.options.config);return this._setupListeners(e),e}_setupListeners(e){let t=this.connection.peer,n=this.connection.connectionId,r=this.connection.type,i=this.connection.provider;em.log("Listening for ICE candidates."),e.onicecandidate=e=>{e.candidate&&e.candidate.candidate&&(em.log(`Received ICE candidates for ${t}:`,e.candidate),i.socket.send({type:eD.Candidate,payload:{candidate:e.candidate,type:r,connectionId:n},dst:t}))},e.oniceconnectionstatechange=()=>{switch(e.iceConnectionState){case"failed":em.log("iceConnectionState is failed, closing connections to "+t),this.connection.emitError(eP.NegotiationFailed,"Negotiation of connection to "+t+" failed."),this.connection.close();break;case"closed":em.log("iceConnectionState is closed, closing connections to "+t),this.connection.emitError(eP.ConnectionClosed,"Connection to "+t+" closed."),this.connection.close();break;case"disconnected":em.log("iceConnectionState changed to disconnected on the connection with "+t);break;case"completed":e.onicecandidate=()=>{}}this.connection.emit("iceStateChanged",e.iceConnectionState)},em.log("Listening for data channel"),e.ondatachannel=e=>{em.log("Received data channel");let r=e.channel;i.getConnection(t,n)._initializeDataChannel(r)},em.log("Listening for remote stream"),e.ontrack=e=>{em.log("Received remote stream");let r=e.streams[0],s=i.getConnection(t,n);s.type===ek.Media&&this._addStreamToMediaConnection(r,s)}}cleanup(){em.log("Cleaning up PeerConnection to "+this.connection.peer);let e=this.connection.peerConnection;if(!e)return;this.connection.peerConnection=null,e.onicecandidate=e.oniceconnectionstatechange=e.ondatachannel=e.ontrack=()=>{};let t="closed"!==e.signalingState,n=!1,r=this.connection.dataChannel;r&&(n=!!r.readyState&&"closed"!==r.readyState),(t||n)&&e.close()}async _makeOffer(){let e=this.connection.peerConnection,t=this.connection.provider;try{let n=await e.createOffer(this.connection.options.constraints);em.log("Created offer."),this.connection.options.sdpTransform&&"function"==typeof this.connection.options.sdpTransform&&(n.sdp=this.connection.options.sdpTransform(n.sdp)||n.sdp);try{await e.setLocalDescription(n),em.log("Set localDescription:",n,`for:${this.connection.peer}`);let r={sdp:n,type:this.connection.type,connectionId:this.connection.connectionId,metadata:this.connection.metadata};if(this.connection.type===ek.Data){let e=this.connection;r={...r,label:e.label,reliable:e.reliable,serialization:e.serialization}}t.socket.send({type:eD.Offer,payload:r,dst:this.connection.peer})}catch(e){"OperationError: Failed to set local offer sdp: Called in wrong state: kHaveRemoteOffer"!=e&&(t.emitError(eR.WebRTC,e),em.log("Failed to setLocalDescription, ",e))}}catch(e){t.emitError(eR.WebRTC,e),em.log("Failed to createOffer, ",e)}}async _makeAnswer(){let e=this.connection.peerConnection,t=this.connection.provider;try{let n=await e.createAnswer();em.log("Created answer."),this.connection.options.sdpTransform&&"function"==typeof this.connection.options.sdpTransform&&(n.sdp=this.connection.options.sdpTransform(n.sdp)||n.sdp);try{await e.setLocalDescription(n),em.log("Set localDescription:",n,`for:${this.connection.peer}`),t.socket.send({type:eD.Answer,payload:{sdp:n,type:this.connection.type,connectionId:this.connection.connectionId},dst:this.connection.peer})}catch(e){t.emitError(eR.WebRTC,e),em.log("Failed to setLocalDescription, ",e)}}catch(e){t.emitError(eR.WebRTC,e),em.log("Failed to create answer, ",e)}}async handleSDP(e,t){t=new RTCSessionDescription(t);let n=this.connection.peerConnection,r=this.connection.provider;em.log("Setting remote description",t);try{await n.setRemoteDescription(t),em.log(`Set remoteDescription:${e} for:${this.connection.peer}`),"OFFER"===e&&await this._makeAnswer()}catch(e){r.emitError(eR.WebRTC,e),em.log("Failed to setRemoteDescription, ",e)}}async handleCandidate(e){em.log("handleCandidate:",e);try{await this.connection.peerConnection.addIceCandidate(e),em.log(`Added ICE candidate for:${this.connection.peer}`)}catch(e){this.connection.provider.emitError(eR.WebRTC,e),em.log("Failed to handleCandidate, ",e)}}_addTracksToConnection(e,t){if(em.log(`add tracks from stream ${e.id} to peer connection`),!t.addTrack)return em.error("Your browser does't support RTCPeerConnection#addTrack. Ignored.");e.getTracks().forEach(n=>{t.addTrack(n,e)})}_addStreamToMediaConnection(e,t){em.log(`add stream ${e.id} to media connection ${t.connectionId}`),t.addStream(e)}constructor(e){this.connection=e}}class eL extends e_.EventEmitter{emitError(e,t){em.error("Error:",t),this.emit("error",new eA(`${e}`,t))}}class eA extends Error{constructor(e,t){"string"==typeof t?super(t):(super(),Object.assign(this,t)),this.type=e}}class ej extends eL{get open(){return this._open}constructor(e,t,n){super(),this.peer=e,this.provider=t,this.options=n,this._open=!1,this.metadata=n.metadata}}class eB extends ej{get type(){return ek.Media}get localStream(){return this._localStream}get remoteStream(){return this._remoteStream}_initializeDataChannel(e){this.dataChannel=e,this.dataChannel.onopen=()=>{em.log(`DC#${this.connectionId} dc connection success`),this.emit("willCloseOnRemote")},this.dataChannel.onclose=()=>{em.log(`DC#${this.connectionId} dc closed for:`,this.peer),this.close()}}addStream(e){em.log("Receiving stream",e),this._remoteStream=e,super.emit("stream",e)}handleMessage(e){let t=e.type,n=e.payload;switch(e.type){case eD.Answer:this._negotiator.handleSDP(t,n.sdp),this._open=!0;break;case eD.Candidate:this._negotiator.handleCandidate(n.candidate);break;default:em.warn(`Unrecognized message type:${t} from peer:${this.peer}`)}}answer(e,t={}){if(this._localStream)return void em.warn("Local stream already exists on this MediaConnection. Are you answering a call twice?");for(let n of(this._localStream=e,t&&t.sdpTransform&&(this.options.sdpTransform=t.sdpTransform),this._negotiator.startConnection({...this.options._payload,_stream:e}),this.provider._getMessages(this.connectionId)))this.handleMessage(n);this._open=!0}close(){this._negotiator&&(this._negotiator.cleanup(),this._negotiator=null),this._localStream=null,this._remoteStream=null,this.provider&&(this.provider._removeConnection(this),this.provider=null),this.options&&this.options._stream&&(this.options._stream=null),this.open&&(this._open=!1,super.emit("close"))}constructor(e,t,n){super(e,t,n),this._localStream=this.options._stream,this.connectionId=this.options.connectionId||eB.ID_PREFIX+ef.randomToken(),this._negotiator=new eO(this),this._localStream&&this._negotiator.startConnection({_stream:this._localStream,originator:!0})}}eB.ID_PREFIX="mc_";class eU{_buildRequest(e){let t=this._options.secure?"https":"http",{host:n,port:r,path:i,key:s}=this._options,o=new URL(`${t}://${n}:${r}${i}${s}/${e}`);return o.searchParams.set("ts",`${Date.now()}${Math.random()}`),o.searchParams.set("version",eI),fetch(o.href,{referrerPolicy:this._options.referrerPolicy})}async retrieveId(){try{let e=await this._buildRequest("id");if(200!==e.status)throw Error(`Error. Status:${e.status}`);return e.text()}catch(t){em.error("Error retrieving ID",t);let e="";throw"/"===this._options.path&&this._options.host!==ef.CLOUD_HOST&&(e=" If you passed in a `path` to your self-hosted PeerServer, you'll also need to pass in that same path when creating a new Peer."),Error("Could not get an ID from the server."+e)}}async listAllPeers(){try{let e=await this._buildRequest("peers");if(200!==e.status){if(401===e.status){let e="";throw e=this._options.host===ef.CLOUD_HOST?"It looks like you're using the cloud server. You can email team@peerjs.com to enable peer listing for your API key.":"You need to enable `allow_discovery` on your self-hosted PeerServer to use this feature.",Error("It doesn't look like you have permission to list peers IDs. "+e)}throw Error(`Error. Status:${e.status}`)}return e.json()}catch(e){throw em.error("Error retrieving list peers",e),Error("Could not get list peers from the server."+e)}}constructor(e){this._options=e}}class eF extends ej{get type(){return ek.Data}_initializeDataChannel(e){this.dataChannel=e,this.dataChannel.onopen=()=>{em.log(`DC#${this.connectionId} dc connection success`),this._open=!0,this.emit("open")},this.dataChannel.onmessage=e=>{em.log(`DC#${this.connectionId} dc onmessage:`,e.data)},this.dataChannel.onclose=()=>{em.log(`DC#${this.connectionId} dc closed for:`,this.peer),this.close()}}close(e){if(e?.flush)return void this.send({__peerData:{type:"close"}});this._negotiator&&(this._negotiator.cleanup(),this._negotiator=null),this.provider&&(this.provider._removeConnection(this),this.provider=null),this.dataChannel&&(this.dataChannel.onopen=null,this.dataChannel.onmessage=null,this.dataChannel.onclose=null,this.dataChannel=null),this.open&&(this._open=!1,super.emit("close"))}send(e,t=!1){return this.open?this._send(e,t):void this.emitError(ew.NotOpenYet,"Connection is not open. You should listen for the `open` event before sending messages.")}async handleMessage(e){let t=e.payload;switch(e.type){case eD.Answer:await this._negotiator.handleSDP(e.type,t.sdp);break;case eD.Candidate:await this._negotiator.handleCandidate(t.candidate);break;default:em.warn("Unrecognized message type:",e.type,"from peer:",this.peer)}}constructor(e,t,n){super(e,t,n),this.connectionId=this.options.connectionId||eF.ID_PREFIX+eh(),this.label=this.options.label||this.connectionId,this.reliable=!!this.options.reliable,this._negotiator=new eO(this),this._negotiator.startConnection(this.options._payload||{originator:!0,reliable:this.reliable})}}eF.ID_PREFIX="dc_",eF.MAX_BUFFERED_AMOUNT=8388608;class eN extends eF{get bufferSize(){return this._bufferSize}_initializeDataChannel(e){super._initializeDataChannel(e),this.dataChannel.binaryType="arraybuffer",this.dataChannel.addEventListener("message",e=>this._handleDataMessage(e))}_bufferedSend(e){(this._buffering||!this._trySend(e))&&(this._buffer.push(e),this._bufferSize=this._buffer.length)}_trySend(e){if(!this.open)return!1;if(this.dataChannel.bufferedAmount>eF.MAX_BUFFERED_AMOUNT)return this._buffering=!0,setTimeout(()=>{this._buffering=!1,this._tryBuffer()},50),!1;try{this.dataChannel.send(e)}catch(e){return em.error(`DC#:${this.connectionId} Error when sending:`,e),this._buffering=!0,this.close(),!1}return!0}_tryBuffer(){if(!this.open||0===this._buffer.length)return;let e=this._buffer[0];this._trySend(e)&&(this._buffer.shift(),this._bufferSize=this._buffer.length,this._tryBuffer())}close(e){if(e?.flush)return void this.send({__peerData:{type:"close"}});this._buffer=[],this._bufferSize=0,super.close()}constructor(...e){super(...e),this._buffer=[],this._bufferSize=0,this._buffering=!1}}class ez extends eN{close(e){super.close(e),this._chunkedData={}}_handleDataMessage({data:e}){let t=i(e),n=t.__peerData;if(n)return"close"===n.type?void this.close():void this._handleChunk(t);this.emit("data",t)}_handleChunk(e){let t=e.__peerData,n=this._chunkedData[t]||{data:[],count:0,total:e.total};if(n.data[e.n]=new Uint8Array(e.data),n.count++,this._chunkedData[t]=n,n.total===n.count){delete this._chunkedData[t];let e=function(e){let t=0;for(let n of e)t+=n.byteLength;let n=new Uint8Array(t),r=0;for(let t of e)n.set(t,r),r+=t.byteLength;return n}(n.data);this._handleDataMessage({data:e})}}_send(e,t){let n=s(e);return n instanceof Promise?this._send_blob(n):!t&&n.byteLength>this.chunker.chunkedMTU?void this._sendChunks(n):void this._bufferedSend(n)}async _send_blob(e){let t=await e;if(t.byteLength>this.chunker.chunkedMTU)return void this._sendChunks(t);this._bufferedSend(t)}_sendChunks(e){let t=this.chunker.chunk(e);for(let e of(em.log(`DC#${this.connectionId} Try to send ${t.length} chunks...`),t))this.send(e,!0)}constructor(e,t,r){super(e,t,r),this.chunker=new n,this.serialization=eE.Binary,this._chunkedData={}}}class e$ extends eN{_handleDataMessage({data:e}){super.emit("data",e)}_send(e,t){this._bufferedSend(e)}constructor(...e){super(...e),this.serialization=eE.None}}class eV extends eN{_handleDataMessage({data:e}){let t=this.parse(this.decoder.decode(e)),n=t.__peerData;if(n&&"close"===n.type)return void this.close();this.emit("data",t)}_send(e,t){let n=this.encoder.encode(this.stringify(e));if(n.byteLength>=ef.chunkedMTU)return void this.emitError(ew.MessageToBig,"Message too big for JSON channel");this._bufferedSend(n)}constructor(...e){super(...e),this.serialization=eE.JSON,this.encoder=new TextEncoder,this.decoder=new TextDecoder,this.stringify=JSON.stringify,this.parse=JSON.parse}}class eG extends eL{get id(){return this._id}get options(){return this._options}get open(){return this._open}get socket(){return this._socket}get connections(){let e=Object.create(null);for(let[t,n]of this._connections)e[t]=n;return e}get destroyed(){return this._destroyed}get disconnected(){return this._disconnected}_createServerConnection(){let e=new eM(this._options.secure,this._options.host,this._options.port,this._options.path,this._options.key,this._options.pingInterval);return e.on(ex.Message,e=>{this._handleMessage(e)}),e.on(ex.Error,e=>{this._abort(eR.SocketError,e)}),e.on(ex.Disconnected,()=>{this.disconnected||(this.emitError(eR.Network,"Lost connection to server."),this.disconnect())}),e.on(ex.Close,()=>{this.disconnected||this._abort(eR.SocketClosed,"Underlying socket is already closed.")}),e}_initialize(e){this._id=e,this.socket.start(e,this._options.token)}_handleMessage(e){let t=e.type,n=e.payload,r=e.src;switch(t){case eD.Open:this._lastServerId=this.id,this._open=!0,this.emit("open",this.id);break;case eD.Error:this._abort(eR.ServerError,n.msg);break;case eD.IdTaken:this._abort(eR.UnavailableID,`ID "${this.id}" is taken`);break;case eD.InvalidKey:this._abort(eR.InvalidKey,`API KEY "${this._options.key}" is invalid`);break;case eD.Leave:em.log(`Received leave message from ${r}`),this._cleanupPeer(r),this._connections.delete(r);break;case eD.Expire:this.emitError(eR.PeerUnavailable,`Could not connect to peer ${r}`);break;case eD.Offer:{let e=n.connectionId,t=this.getConnection(r,e);if(t&&(t.close(),em.warn(`Offer received for existing Connection ID:${e}`)),n.type===ek.Media){let i=new eB(r,this,{connectionId:e,_payload:n,metadata:n.metadata});t=i,this._addConnection(r,t),this.emit("call",i)}else{if(n.type!==ek.Data)return void em.warn(`Received malformed connection type:${n.type}`);let i=new this._serializers[n.serialization](r,this,{connectionId:e,_payload:n,metadata:n.metadata,label:n.label,serialization:n.serialization,reliable:n.reliable});t=i,this._addConnection(r,t),this.emit("connection",i)}for(let n of this._getMessages(e))t.handleMessage(n);break}default:{if(!n)return void em.warn(`You received a malformed message from ${r} of type ${t}`);let i=n.connectionId,s=this.getConnection(r,i);s&&s.peerConnection?s.handleMessage(e):i?this._storeMessage(i,e):em.warn("You received an unrecognized message:",e)}}}_storeMessage(e,t){this._lostMessages.has(e)||this._lostMessages.set(e,[]),this._lostMessages.get(e).push(t)}_getMessages(e){let t=this._lostMessages.get(e);return t?(this._lostMessages.delete(e),t):[]}connect(e,t={}){if(t={serialization:"default",...t},this.disconnected){em.warn("You cannot connect to a new Peer because you called .disconnect() on this Peer and ended your connection with the server. You can create a new Peer to reconnect, or call reconnect on this peer if you believe its ID to still be available."),this.emitError(eR.Disconnected,"Cannot connect to new Peer after disconnecting from server.");return}let n=new this._serializers[t.serialization](e,this,t);return this._addConnection(e,n),n}call(e,t,n={}){if(this.disconnected){em.warn("You cannot connect to a new Peer because you called .disconnect() on this Peer and ended your connection with the server. You can create a new Peer to reconnect."),this.emitError(eR.Disconnected,"Cannot connect to new Peer after disconnecting from server.");return}if(!t)return void em.error("To call a peer, you must provide a stream from your browser's `getUserMedia`.");let r=new eB(e,this,{...n,_stream:t});return this._addConnection(e,r),r}_addConnection(e,t){em.log(`add connection ${t.type}:${t.connectionId} to peerId:${e}`),this._connections.has(e)||this._connections.set(e,[]),this._connections.get(e).push(t)}_removeConnection(e){let t=this._connections.get(e.peer);if(t){let n=t.indexOf(e);-1!==n&&t.splice(n,1)}this._lostMessages.delete(e.connectionId)}getConnection(e,t){let n=this._connections.get(e);if(!n)return null;for(let e of n)if(e.connectionId===t)return e;return null}_delayedAbort(e,t){setTimeout(()=>{this._abort(e,t)},0)}_abort(e,t){em.error("Aborting!"),this.emitError(e,t),this._lastServerId?this.disconnect():this.destroy()}destroy(){this.destroyed||(em.log(`Destroy peer with ID:${this.id}`),this.disconnect(),this._cleanup(),this._destroyed=!0,this.emit("close"))}_cleanup(){for(let e of this._connections.keys())this._cleanupPeer(e),this._connections.delete(e);this.socket.removeAllListeners()}_cleanupPeer(e){let t=this._connections.get(e);if(t)for(let e of t)e.close()}disconnect(){if(this.disconnected)return;let e=this.id;em.log(`Disconnect peer with ID:${e}`),this._disconnected=!0,this._open=!1,this.socket.close(),this._lastServerId=e,this._id=null,this.emit("disconnected",e)}reconnect(){if(this.disconnected&&!this.destroyed)em.log(`Attempting reconnection to server with ID ${this._lastServerId}`),this._disconnected=!1,this._initialize(this._lastServerId);else if(this.destroyed)throw Error("This peer cannot reconnect to the server. It has already been destroyed.");else if(this.disconnected||this.open)throw Error(`Peer ${this.id} cannot reconnect because it is not disconnected from the server!`);else em.error("In a hurry? We're still trying to make the initial connection!")}listAllPeers(e=e=>{}){this._api.listAllPeers().then(t=>e(t)).catch(e=>this._abort(eR.ServerError,e))}constructor(e,t){let n;if(super(),this._serializers={raw:e$,json:eV,binary:ez,"binary-utf8":ez,default:ez},this._id=null,this._lastServerId=null,this._destroyed=!1,this._disconnected=!1,this._open=!1,this._connections=new Map,this._lostMessages=new Map,e&&e.constructor==Object?t=e:e&&(n=e.toString()),t={debug:0,host:ef.CLOUD_HOST,port:ef.CLOUD_PORT,path:"/",key:eG.DEFAULT_KEY,token:ef.randomToken(),config:ef.defaultConfig,referrerPolicy:"strict-origin-when-cross-origin",serializers:{},...t},this._options=t,this._serializers={...this._serializers,...this.options.serializers},"/"===this._options.host&&(this._options.host=window.location.hostname),this._options.path&&("/"!==this._options.path[0]&&(this._options.path="/"+this._options.path),"/"!==this._options.path[this._options.path.length-1]&&(this._options.path+="/")),void 0===this._options.secure&&this._options.host!==ef.CLOUD_HOST?this._options.secure=ef.isSecure():this._options.host==ef.CLOUD_HOST&&(this._options.secure=!0),this._options.logFunction&&em.setLogFunction(this._options.logFunction),em.logLevel=this._options.debug||0,this._api=new eU(t),this._socket=this._createServerConnection(),!ef.supports.audioVideo&&!ef.supports.data)return void this._delayedAbort(eR.BrowserIncompatible,"The current browser does not support WebRTC");if(n&&!ef.validateId(n))return void this._delayedAbort(eR.InvalidID,`ID "${n}" is invalid`);n?this._initialize(n):this._api.retrieveId().then(e=>this._initialize(e)).catch(e=>this._abort(eR.ServerError,e))}}eG.DEFAULT_KEY="peerjs",window.peerjs={Peer:eG,util:ef},window.Peer=eG})();
+//# sourceMappingURL=peerjs.min.js.map
+
+</script>
+<script>
+/* ==================================================================
+   NEOZUL — game engine (pure, DOM-free, unit-testable)
+   ================================================================== */
+//<<ENGINE
+const AZ = (function(){
+  'use strict';
+  const COLORS = ['blue','yellow','red','black','cyan'];
+  // official wall pattern: WALL[row] = color index per column (col -> color)
+  const WALL = [
+    [0,1,2,3,4], // B Y R K W
+    [4,0,1,2,3], // W B Y R K
+    [3,4,0,1,2], // K W B Y R
+    [2,3,4,0,1], // R K W B Y
+    [1,2,3,4,0], // Y R K W B
+  ];
+  const FLOOR_PEN = [1,1,2,2,2,3,3];
+  const FLOOR_SIZE = 7;
+
+  /* ---- seeded rng (serialized inside state for autosave determinism) ---- */
+  function rngNext(st){
+    st.rs = (st.rs + 0x6D2B79F5) | 0;
+    let t = st.rs;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  }
+  function shuffle(st, arr){
+    for(let i = arr.length - 1; i > 0; i--){
+      const j = Math.floor(rngNext(st) * (i + 1));
+      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  function factoryCount(nPlayers){ return nPlayers === 2 ? 5 : nPlayers === 3 ? 7 : 9; }
+
+  function newPlayer(cfg){
+    return {
+      name: cfg.name, type: cfg.type, ai: cfg.type === 'ai' ? cfg.ai : null,
+      score: 0,
+      lines: [{c:-1,n:0},{c:-1,n:0},{c:-1,n:0},{c:-1,n:0},{c:-1,n:0}],
+      wall: [[-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1],[-1,-1,-1,-1,-1]],
+      floor: []
+    };
+  }
+
+  function newGame(cfg){
+    const st = {
+      v: 2,
+      rs: (Math.random() * 2147483647) | 0,
+      cfg: { count: cfg.count, privacy: !!cfg.privacy },
+      players: cfg.slots.map(newPlayer),
+      factories: [], center: [], bag: [], lid: [],
+      tokenOnFloorOf: -1,          // -1 = token sits in the center pool
+      startPlayer: 0,
+      cur: 0, round: 1, phase: 'draft',
+      endTriggered: false, winners: null, finalBreak: null
+    };
+    const pool = [];
+    for(let c = 0; c < 5; c++) for(let k = 0; k < 20; k++) pool.push(c);
+    shuffle(st, pool);
+    st.bag = pool;
+    st.startPlayer = Math.floor(rngNext(st) * st.players.length);
+    beginRound(st);
+    return st;
+  }
+
+  function beginRound(st){
+    const nf = factoryCount(st.players.length);
+    st.factories = Array.from({length: nf}, () => []);
+    for(let f = 0; f < nf; f++){
+      for(let k = 0; k < 4; k++){
+        if(!st.bag.length){
+          if(st.lid.length){ st.bag = shuffle(st, st.lid.slice()); st.lid.length = 0; }
+          else break; // tiles exhausted: leave factory short
+        }
+        st.factories[f].push(st.bag.pop());
+      }
+    }
+    st.tokenOnFloorOf = -1; // marker returns to the center of the table
+    st.cur = st.startPlayer;
+    st.phase = 'draft';
+  }
+
+  function wallCol(r, c){ return WALL[r].indexOf(c); }
+  function canPlaceLine(P, r, c){
+    const L = P.lines[r];
+    if(L.n >= r + 1) return false;
+    if(L.c >= 0 && L.c !== c) return false;
+    return P.wall[r][wallCol(r, c)] < 0;
+  }
+
+  function legalMoves(st, pid){
+    const P = st.players[pid], ms = [], srcs = [];
+    st.factories.forEach((f, i) => { if(f.length) srcs.push(i); });
+    if(st.center.length) srcs.push('C');
+    for(const s of srcs){
+      const pool = s === 'C' ? st.center : st.factories[s];
+      const colors = [];
+      for(const t of pool) if(!colors.includes(t)) colors.push(t);
+      for(const c of colors){
+        for(let r = 0; r < 5; r++) if(canPlaceLine(P, r, c)) ms.push({s, c, d:r});
+        ms.push({s, c, d:'F'});
+      }
+    }
+    return ms;
+  }
+
+  function penFor(floorArr){
+    let p = 0;
+    for(let i = 0; i < Math.min(floorArr.length, FLOOR_SIZE); i++){
+      if(!floorArr[i].t) p += FLOOR_PEN[i];
+    }
+    return p;
+  }
+  const floorPenalty = P => penFor(P.floor);
+
+  function addFloor(st, P, c){
+    if(P.floor.length < FLOOR_SIZE) P.floor.push({c});
+    else st.lid.push(c); // excess tiles: back to the lid, no penalty
+  }
+
+  function applyMove(st, pid, m){
+    const P = st.players[pid], ev = [];
+    let n;
+    if(m.s === 'C'){
+      n = st.center.filter(c => c === m.c).length;
+      st.center = st.center.filter(c => c !== m.c);
+      if(st.tokenOnFloorOf === -1){
+        st.tokenOnFloorOf = pid;
+        if(P.floor.length < FLOOR_SIZE) P.floor.push({t:1});
+        ev.push({t:'token', pid});
+      }
+    } else {
+      const f = st.factories[m.s];
+      const take = f.filter(c => c === m.c);
+      const rest = f.filter(c => c !== m.c);
+      n = take.length;
+      st.factories[m.s] = [];                 // factory empties into the center
+      if(rest.length){ st.center.push(...rest); ev.push({t:'leftover', from:m.s, n:rest.length}); }
+    }
+    ev.push({t:'take', pid, s:m.s, c:m.c, n});
+    if(m.d === 'F'){
+      for(let i = 0; i < n; i++) addFloor(st, P, m.c);
+      ev.push({t:'floorplace', pid, n});
+    } else {
+      const r = m.d, size = r + 1, L = P.lines[r];
+      const put = Math.min(size - L.n, n);
+      L.c = m.c; L.n += put;
+      ev.push({t:'line', pid, r, n:put});
+      const over = n - put;
+      for(let i = 0; i < over; i++) addFloor(st, P, m.c);
+      if(over) ev.push({t:'overflow', pid, n:over, r});
+    }
+    if(st.factories.every(f => !f.length) && !st.center.length){
+      st.phase = 'scoring';
+    } else {
+      st.cur = (st.cur + 1) % st.players.length;   // clockwise turn advance
+    }
+    return ev;
+  }
+
+  function adjPts(wall, r, col){
+    let h = 1, v = 1;
+    for(let i = col - 1; i >= 0 && wall[r][i] >= 0; i--) h++;
+    for(let i = col + 1; i < 5 && wall[r][i] >= 0; i++) h++;
+    for(let i = r - 1; i >= 0 && wall[i][col] >= 0; i--) v++;
+    for(let i = r + 1; i < 5 && wall[i][col] >= 0; i++) v++;
+    let s = (h > 1 ? h : 0) + (v > 1 ? v : 0);
+    return s || 1;
+  }
+
+  function completedRows(P){
+    let n = 0;
+    for(let r = 0; r < 5; r++) if(P.wall[r].every(x => x >= 0)) n++;
+    return n;
+  }
+  function completedCols(P){
+    let n = 0;
+    for(let c = 0; c < 5; c++) if(P.wall.every(row => row[c] >= 0)) n++;
+    return n;
+  }
+  function completedColors(P){
+    let n = 0;
+    for(let ci = 0; ci < 5; ci++){
+      let ok = true;
+      for(let r = 0; r < 5; r++) if(P.wall[r][wallCol(r, ci)] < 0) ok = false;
+      if(ok) n++;
+    }
+    return n;
+  }
+
+  /* Runs wall tiling + floor penalties (+ final scoring / next round).
+     Mutates st, returns an event list for the UI to animate. */
+  function runScoring(st){
+    const evs = [];
+    let anyRow = false;
+    for(let pid = 0; pid < st.players.length; pid++){
+      const P = st.players[pid];
+      for(let r = 0; r < 5; r++){
+        const L = P.lines[r];
+        if(L.n === r + 1 && L.c >= 0){
+          const col = wallCol(r, L.c);
+          const pts = adjPts(P.wall, r, col);
+          P.wall[r][col] = L.c;
+          for(let k = 0; k < L.n - 1; k++) st.lid.push(L.c); // surplus copies -> lid
+          const c = L.c;
+          P.lines[r] = {c:-1, n:0};
+          P.score += pts;
+          evs.push({t:'wall', pid, r, col, c, pts});
+        }
+      }
+      const pen = floorPenalty(P);
+      if(pen > 0){
+        P.score -= pen;
+        evs.push({t:'floor', pid, pen});
+      }
+      for(const e of P.floor) if(!e.t) st.lid.push(e.c);
+      P.floor = [];
+      if(P.wall.some(row => row.every(x => x >= 0))) anyRow = true;
+    }
+    if(st.tokenOnFloorOf >= 0) st.startPlayer = st.tokenOnFloorOf;
+    evs.push({t:'roundend', round: st.round});
+    if(anyRow){
+      st.endTriggered = true;
+      const fb = st.players.map(P => {
+        const rows = completedRows(P), cols = completedCols(P), colors = completedColors(P);
+        const pts = rows * 2 + cols * 7 + colors * 10;
+        P.score += pts;
+        return {rows, cols, colors, pts};
+      });
+      st.finalBreak = fb;
+      st.phase = 'over';
+      const order = st.players.map((_, i) => i)
+        .sort((a, b) => st.players[b].score - st.players[a].score ||
+                        completedRows(st.players[b]) - completedRows(st.players[a]));
+      const topScore = st.players[order[0]].score;
+      const topRows = completedRows(st.players[order[0]]);
+      st.winners = order.filter(i => st.players[i].score === topScore &&
+                                     completedRows(st.players[i]) === topRows);
+      evs.push({t:'gameover'});
+    } else {
+      st.round++;
+      beginRound(st);
+      evs.push({t:'newround', round: st.round});
+    }
+    return evs;
+  }
+
+  /* ---------------- AI ---------------- */
+  // immediate value of a move for player pid (greedy core shared by all levels)
+  function moveValue(st, pid, m, opt){
+    const P = st.players[pid];
+    const pool = m.s === 'C' ? st.center : st.factories[m.s];
+    const n = pool.filter(c => c === m.c).length;
+    const takesToken = m.s === 'C' && st.tokenOnFloorOf === -1;
+    let val = 0;
+
+    // simulate floor additions (token first, then overflow)
+    const simFloor = P.floor.map(e => ({c:e.c, t:e.t}));
+    const pushF = e => { if(simFloor.length < FLOOR_SIZE) simFloor.push(e); };
+    if(takesToken) pushF({t:1});
+    const after0 = penFor(simFloor);
+
+    if(m.d === 'F'){
+      for(let i = 0; i < n; i++) pushF({c:m.c});
+      val -= 1.15 * (penFor(simFloor) - after0);
+    } else {
+      const r = m.d, size = r + 1, L = P.lines[r];
+      const put = Math.min(size - L.n, n);
+      const over = n - put;
+      const newN = L.n + put;
+      const col = wallCol(r, m.c);
+      if(newN === size){
+        // completes NOW: projection of the wall placement on the current wall
+        const simWall = P.wall.map(row => row.slice());
+        simWall[r][col] = m.c;
+        val += 1.0 * adjPts(simWall, r, col);
+      } else {
+        const simWall = P.wall.map(row => row.slice());
+        simWall[r][col] = m.c;
+        val += 0.32 * put + 0.5 * adjPts(simWall, r, col) * (newN / size);
+      }
+      val += 0.1 * put;
+      for(let i = 0; i < over; i++) pushF({c:m.c});
+      val -= 1.15 * (penFor(simFloor) - after0);
+    }
+    if(takesToken) val += 0.9; // first player next round
+
+    // denial: how much would opponents gain from this exact source+color?
+    if(opt.deny > 0){
+      for(let o = 0; o < st.players.length; o++){
+        if(o === pid) continue;
+        const oms = legalMoves(st, o);
+        let g = 0;
+        for(const om of oms){
+          if(om.s !== m.s || om.c !== m.c) continue;
+          const v = moveValue(st, o, om, {deny:0});
+          if(v > g) g = v;
+        }
+        val -= opt.deny * Math.max(0, g);
+      }
+    }
+    if(opt.noise > 0) val += (rngNext(st) - 0.5) * 2 * opt.noise;
+    return val;
+  }
+
+  function aiChooseMove(st, pid){
+    const P = st.players[pid];
+    const lvl = P.ai || 'medium';
+    const ms = legalMoves(st, pid);
+    if(!ms.length) return null;
+    if(lvl === 'easy' && rngNext(st) < 0.25) return ms[Math.floor(rngNext(st) * ms.length)];
+    const opt = {
+      deny:  lvl === 'hard' ? 0.85 : lvl === 'medium' ? 0.35 : 0.05,
+      noise: lvl === 'easy' ? 4    : lvl === 'medium' ? 0.9  : 0.15
+    };
+    let best = null, bestV = -Infinity;
+    shuffle(st, ms); // randomize tie order
+    for(const m of ms){
+      const v = moveValue(st, pid, m, opt);
+      if(v > bestV){ bestV = v; best = m; }
+    }
+    return best;
+  }
+
+  return {COLORS, WALL, FLOOR_PEN, FLOOR_SIZE,
+          newGame, beginRound, legalMoves, applyMove, runScoring,
+          penFor, floorPenalty, wallCol, canPlaceLine, adjPts,
+          completedRows, completedCols, completedColors,
+          aiChooseMove, factoryCount};
+})();
+//ENGINE>>
+/* ==================================================================
+   AUDIO — 100% synthesized SFX (coins, clicks, zaps — no instruments)
+   ================================================================== */
+const S = (function(){
+  let ctx = null, master = null;
+  let on = localStorage.getItem('neozul.sound') !== '0';
+  function ac(){
+    if(!ctx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return null;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = 0.6;
+      master.connect(ctx.destination);
+    }
+    if(ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function tone(o){
+    if(!on) return; const c = ac(); if(!c) return;
+    const {f=440, f2=null, dur=.15, type='sine', vol=.4, delay=0} = o;
+    const osc = c.createOscillator(), g = c.createGain();
+    const t0 = c.currentTime + delay;
+    osc.type = type;
+    osc.frequency.setValueAtTime(Math.max(30,f), t0);
+    if(f2) osc.frequency.exponentialRampToValueAtTime(Math.max(30,f2), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(vol, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g); g.connect(master);
+    osc.start(t0); osc.stop(t0 + dur + 0.05);
+  }
+  function noiseHit(o){
+    if(!on) return; const c = ac(); if(!c) return;
+    const {dur=.08, vol=.2, freq=1200, delay=0} = o;
+    const len = Math.max(1, Math.floor(c.sampleRate * dur));
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    for(let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource(); src.buffer = buf;
+    const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = freq; bp.Q.value = 0.9;
+    const g = c.createGain();
+    const t0 = c.currentTime + delay;
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(bp); bp.connect(g); g.connect(master);
+    src.start(t0);
+  }
+  return {
+    get on(){ return on; },
+    toggle(){ on = !on; localStorage.setItem('neozul.sound', on ? '1' : '0'); if(on){ ac(); S.coin(2); } return on; },
+    unlock(){ if(on) ac(); },
+    select(){ tone({f:920, dur:.06, type:'sine', vol:.14}); },
+    take(){ tone({f:300, f2:130, dur:.09, type:'square', vol:.16}); noiseHit({dur:.05, vol:.1, freq:2400}); },
+    place(){ tone({f:190, dur:.05, type:'triangle', vol:.28}); noiseHit({dur:.03, vol:.12, freq:900}); },
+    toCenter(){ tone({f:150, f2:95, dur:.12, type:'triangle', vol:.18}); },
+    wall(i){ const m = 1 + i * .045; tone({f:1320*m, dur:.4, type:'sine', vol:.2}); tone({f:2640*m, dur:.18, type:'sine', vol:.06}); },
+    coin(i){ const m = 1 + i * .045; tone({f:988*m, dur:.07, type:'triangle', vol:.18}); tone({f:1319*m, dur:.3, type:'triangle', vol:.2, delay:.06}); },
+    penalty(){ tone({f:130, f2:55, dur:.3, type:'sawtooth', vol:.2}); noiseHit({dur:.2, vol:.09, freq:280}); },
+    token(){ tone({f:500, f2:2400, dur:.16, type:'square', vol:.13}); tone({f:2400, f2:600, dur:.24, type:'square', vol:.09, delay:.11}); },
+    error(){ tone({f:110, dur:.12, type:'square', vol:.18}); },
+    hover(){ tone({f:1700, dur:.03, type:'sine', vol:.045}); },
+    whoosh(){ noiseHit({dur:.28, vol:.14, freq:650}); },
+    roundEnd(){ for(let i = 0; i < 6; i++) setTimeout(() => S.coin(i), i * 70); },
+    win(){ for(let i = 0; i < 14; i++) setTimeout(() => S.coin(i * .7), i * 90); noiseHit({dur:.6, vol:.05, freq:5200, delay:.2}); }
+  };
+})();
+
+/* ==================================================================
+   FX — particles, screen shake, popups, flying tiles
+   ================================================================== */
+const FX = (function(){
+  const cv = document.getElementById('fx');
+  const cx = cv.getContext('2d');
+  let ps = [];
+  let shakeP = 0, shakeUntil = 0;
+  const app = document.getElementById('app');
+  function resize(){ cv.width = innerWidth; cv.height = innerHeight; }
+  addEventListener('resize', resize); resize();
+
+  function burst(x, y, color, n = 14, spread = 3.4){
+    for(let i = 0; i < n; i++){
+      const a = Math.random() * Math.PI * 2, sp = (0.4 + Math.random()) * spread;
+      ps.push({x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 1.2, g: .13,
+               life: 1, decay: .022 + Math.random() * .02, size: 2 + Math.random() * 3.4,
+               color, rot: 0, vr: 0});
+    }
+    if(ps.length > 420) ps = ps.slice(-420);
+  }
+  function coinRain(n = 90){
+    for(let i = 0; i < n; i++){
+      ps.push({x: Math.random() * cv.width, y: -30 - Math.random() * 260,
+               vx: (Math.random() - .5) * 1.4, vy: 1.5 + Math.random() * 2.6, g: .045,
+               life: 1, decay: .0035, size: 4 + Math.random() * 4.5,
+               color: '#ffd23f', coin: true, rot: Math.random() * 6.28, vr: (Math.random() - .5) * .28});
+    }
+  }
+  function shake(p){ shakeP = Math.max(shakeP, p); shakeUntil = performance.now() + 300; }
+
+  (function loop(){
+    requestAnimationFrame(loop);
+    cx.clearRect(0, 0, cv.width, cv.height);
+    for(let i = ps.length - 1; i >= 0; i--){
+      const p = ps[i];
+      p.x += p.vx; p.y += p.vy; p.vy += p.g; p.life -= p.decay; p.rot += p.vr;
+      if(p.life <= 0 || p.y > cv.height + 40){ ps.splice(i, 1); continue; }
+      cx.globalAlpha = Math.max(0, Math.min(1, p.life));
+      cx.fillStyle = p.color;
+      cx.shadowColor = p.color; cx.shadowBlur = 8;
+      if(p.coin){
+        cx.save(); cx.translate(p.x, p.y); cx.rotate(p.rot);
+        const w = p.size * Math.abs(Math.cos(p.rot * 2)) + 1.4;
+        cx.fillRect(-w / 2, -p.size / 2, w, p.size);
+        cx.restore();
+      } else {
+        cx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+      }
+    }
+    cx.globalAlpha = 1; cx.shadowBlur = 0;
+    // screen shake
+    const now = performance.now();
+    if(now < shakeUntil){
+      const k = shakeP * ((shakeUntil - now) / 300);
+      app.style.transform = `translate(${(Math.random() - .5) * k * 2}px, ${(Math.random() - .5) * k * 2}px)`;
+    } else if(app.style.transform){ app.style.transform = ''; shakeP = 0; }
+  })();
+  return {burst, coinRain, shake};
+})();
+
+const COLHEX = {blue:'#4a76b8', yellow:'#e0b34e', red:'#d95d4e', black:'#5a5a64', cyan:'#58b7b0'};
+function esc(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+const $ = s => document.querySelector(s);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function spawnPopupAt(el, text, cls){
+  if(!el) return;
+  const r = el.getBoundingClientRect();
+  const d = document.createElement('div');
+  d.className = 'pop ' + cls;
+  d.textContent = text;
+  d.style.left = (r.left + r.width / 2 - 30) + 'px';
+  d.style.top = (r.top - 14) + 'px';
+  document.body.appendChild(d);
+  setTimeout(() => d.remove(), 1050);
+}
+function burstAt(el, color, n){
+  if(!el) return;
+  const r = el.getBoundingClientRect();
+  FX.burst(r.left + r.width / 2, r.top + r.height / 2, color, n);
+}
+function flyRect(fromRect, toRect, color, opts = {}){
+  const el = document.createElement('div');
+  el.className = 'flyer ' + (opts.token ? 'tokencore small' : 'tile');
+  if(!opts.token) el.dataset.c = color;
+  el.style.cssText += `left:${fromRect.left}px;top:${fromRect.top}px;width:${fromRect.width}px;height:${fromRect.height}px;`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.style.left = toRect.left + 'px';
+    el.style.top = toRect.top + 'px';
+    el.style.width = toRect.width + 'px';
+    el.style.height = toRect.height + 'px';
+  }));
+  setTimeout(() => el.remove(), 470);
+}
+function centerRect(el){
+  const r = el.getBoundingClientRect();
+  return {left: r.left + r.width / 2 - 24, top: r.top + r.height / 2 - 24, width: 48, height: 48};
+}
+
+/* toast */
+let toastT = null;
+function toast(msg){
+  const t = $('#toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('show'), 1700);
+}
+function banner(html, ai){
+  const b = $('#banner');
+  b.innerHTML = html;
+  b.classList.toggle('aiturn', !!ai);
+}
+
+/* ==================================================================
+   SAVE / LOAD
+   ================================================================== */
+const SAVE_KEY = 'neozul.save.v2';
+function saveGame(){ if(typeof net !== 'undefined' && net.mode !== 'off') return; try{ localStorage.setItem(SAVE_KEY, JSON.stringify(st)); }catch(e){} }
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+function loadGame(){
+  try{
+    const s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    if(s && s.v === 2 && Array.isArray(s.players) && s.players.length >= 2) return s;
+  }catch(e){}
+  return null;
+}
+
+/* ==================================================================
+   NEOZUL — ONLINE MULTIPLAYER (peer-to-peer WebRTC, no game server)
+   ------------------------------------------------------------------
+   How it works:
+   · The HOST's browser is the authority: it runs the engine + AIs,
+     applies every move and broadcasts full state snapshots plus
+     animation event lists after each action.
+   · Friends (CLIENTS) send move intents for their own seat and
+     replay the received snapshots/animations locally.
+   · Signaling (the handshake only) uses the free public PeerJS
+     broker; gameplay data then flows directly between browsers.
+   · Room code "ABCDE"  ->  peer id "neozul-ABCDE".
+   ================================================================== */
+const NET_PREFIX = 'neozul-';
+const net = {
+  mode: 'off',            // 'off' | 'host' | 'client'
+  peer: null,             // my Peer object
+  up: null,               // client: connection to the host
+  conns: [],              // host: [{conn, name, seat}]
+  mySeat: -1,             // client: my seat index
+  code: '',               // host: room code
+  count: 2,               // host: table size while hosting
+  seats: [],              // host: seat list [{name,type,ai,taken,you}]
+  started: false,         // a game is running on this table
+  pending: null,          // host: remote move buffered while animating
+  joined: false,          // client: handshake complete
+  msgQ: Promise.resolve() // client: serializes state application
+};
+
+function netSanitize(s){
+  const t = String(s || '').replace(/[<>&"']/g, '').trim().slice(0, 14);
+  return t || 'PLAYER';
+}
+function netCode(){
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c = '';
+  for(let i = 0; i < 5; i++) c += A[Math.floor(Math.random() * A.length)];
+  return c;
+}
+function netOpts(){
+  const ice = {iceServers: [
+    {urls: 'stun:stun.l.google.com:19302'},
+    {urls: 'stun:stun1.l.google.com:19302'}
+  ]};
+  const b = new URLSearchParams(location.search).get('broker');   // host:port[:path]
+  if(b){
+    const p = b.split(':');
+    const port = +p[1] || 443;
+    return {host: p[0], port, path: p[2] || '/', secure: port === 443, config: ice, debug: 0};
+  }
+  return {config: ice, debug: 0};   // default: PeerJS public cloud broker
+}
+function netAvailable(){ return typeof Peer !== 'undefined'; }
+
+/* ---------------- shared small helpers ---------------- */
+function netStatus(msg, where){
+  const el = $(where === 'join' ? '#netJoinStatus' : '#netStatus');
+  if(el) el.textContent = msg || '';
+}
+function netPubSeat(s){
+  return {name: s.name, type: s.type === 'human' ? 'human' : s.type, ai: s.ai || null};
+}
+function netBroadcast(msg){
+  if(net.mode !== 'host') return;
+  net.conns.forEach(c => { try{ c.conn.send(msg); }catch(e){} });
+}
+
+/* ==================================================================
+   HOST
+   ================================================================== */
+function netHost(){
+  if(!netAvailable()){ toast('ONLINE NEEDS INTERNET — LIBRARY FAILED TO LOAD'); return; }
+  netTeardown();
+  net.mode = 'host';
+  net.code = netCode();
+  net.count = lobby.count;
+  net.mySeat = 0;
+  net.seats = [{name: netSanitize($('#netHostName').value), type: 'human', you: true}];
+  for(let i = 1; i < net.count; i++) net.seats.push({name: 'OPEN', type: 'open', ai: 'medium'});
+  net.conns = [];
+  netPanel('host');
+  netRenderSeats();
+  $('#netCode').textContent = '·····';
+  netStatus('Creating table…');
+  S.select();
+  const peer = new Peer(NET_PREFIX + net.code, netOpts());
+  net.peer = peer;
+  peer.on('open', () => {
+    $('#netCode').textContent = net.code;
+    netStatus('Table open — share the code (or the invite link) with your friends.');
+  });
+  peer.on('connection', conn => netHostConn(conn));
+  peer.on('disconnected', () => {
+    if(net.mode !== 'host') return;
+    netStatus('Lost the signal server — reconnecting…');
+    try{ peer.reconnect(); }catch(e){}
+  });
+  peer.on('error', err => netHostErr(err));
+}
+
+function netHostErr(err){
+  const type = err && err.type;
+  if(type === 'unavailable-id'){
+    net.code = netCode();                       // code collision: retry silently
+    try{ net.peer.destroy(); }catch(e){}
+    const peer = new Peer(NET_PREFIX + net.code, netOpts());
+    net.peer = peer;
+    peer.on('open', () => {
+      $('#netCode').textContent = net.code;
+      netStatus('Table open — share the code (or the invite link) with your friends.');
+    });
+    peer.on('connection', conn => netHostConn(conn));
+    peer.on('disconnected', () => { try{ peer.reconnect(); }catch(e){} });
+    peer.on('error', e => netHostErr(e));
+    return;
+  }
+  if(type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed'){
+    netStatus('Cannot reach the match server — check your connection, then press HOST again.');
+    toast('SIGNAL SERVER UNREACHABLE');
+    return;
+  }
+  if(type === 'browser-incompatible'){
+    netStatus('This browser does not support WebRTC.');
+    return;
+  }
+  console.warn('peer error', err);
+}
+
+function netHostConn(conn){
+  conn.on('data', d => netHostData(conn, d));
+  conn.on('close', () => netDropFriend(conn));
+  conn.on('error', () => netDropFriend(conn));
+}
+
+function netHostData(conn, d){
+  if(!d || typeof d !== 'object') return;
+  if(d.t === 'join'){
+    if(net.started){ try{ conn.send({t: 'busy'}); }catch(e){} setTimeout(() => conn.close(), 300); return; }
+    let seat = net.seats.findIndex((s, i) => i > 0 && s.type === 'open');
+    if(seat < 0) seat = net.seats.findIndex((s, i) => i > 0 && s.type === 'ai');
+    if(seat < 0){ try{ conn.send({t: 'full'}); }catch(e){} setTimeout(() => conn.close(), 300); return; }
+    const name = netSanitize(d.name);
+    net.seats[seat] = {name, type: 'human', taken: true};
+    net.conns.push({conn, name, seat});
+    try{ conn.send({t: 'welcome', seat, count: net.count}); }catch(e){}
+    netSyncLobby();
+    toast(name + ' JOINED THE TABLE');
+    S.select();
+  } else if(d.t === 'move'){
+    netHostMove(conn, d.m);
+  } else if(d.t === 'leave'){
+    netDropFriend(conn);
+  }
+}
+
+function netDropFriend(conn){
+  const i = net.conns.findIndex(c => c.conn === conn);
+  if(i < 0) return;
+  const f = net.conns[i];
+  net.conns.splice(i, 1);
+  try{ conn.close(); }catch(e){}
+  if(!net.started){
+    net.seats[f.seat] = {name: 'OPEN', type: 'open', ai: 'medium'};
+    netSyncLobby();
+  } else {
+    // keep the table alive: the seat is taken over by an AI
+    net.seats[f.seat] = {name: 'CPU-' + (f.seat + 1), type: 'ai', ai: 'medium'};
+    if(st && st.players[f.seat]){
+      st.players[f.seat].type = 'ai';
+      st.players[f.seat].ai = 'medium';
+      render();          // refresh the departed player's board right away
+    }
+    if(st && st.phase === 'draft' && st.cur === f.seat && ui.humanResolve){
+      const r = ui.humanResolve; ui.humanResolve = null; r();   // kick the loop
+    }
+  }
+  toast(f.name.toUpperCase() + ' LEFT — SEAT NOW PLAYED BY AI');
+  netSyncLobby();
+}
+
+function netHostMove(conn, m){
+  const f = net.conns.find(c => c.conn === conn);
+  if(!f || !net.started || !st || st.phase !== 'draft' || st.cur !== f.seat) return;
+  if(!m || !AZ.legalMoves(st, f.seat).some(x => x.s === m.s && x.c === m.c && x.d === m.d)) return;
+  if(ui.lock){ net.pending = m; }        // host still animating: buffer it
+  else doMove(m);                        // doMove ends by resolving the host loop
+}
+
+/* host: cycle an empty seat  open -> ai easy -> med -> hard -> open */
+function netCycleSeat(i){
+  if(net.mode !== 'host' || net.started) return;
+  const s = net.seats[i];
+  if(!s || s.type === 'human') return;
+  if(s.type === 'open'){ s.type = 'ai'; s.ai = 'easy'; }
+  else if(s.ai === 'easy') s.ai = 'medium';
+  else if(s.ai === 'medium') s.ai = 'hard';
+  else { s.type = 'open'; s.ai = 'medium'; }
+  s.name = s.type === 'ai' ? 'CPU-' + (i + 1) : 'OPEN';
+  s.taken = false;
+  S.select();
+  netSyncLobby();
+}
+function netSetCount(n){
+  if(net.mode !== 'host' || net.started) return;
+  if(n < 1 + net.conns.length){ toast('CONNECTED FRIENDS OCCUPY THOSE SEATS'); return; }
+  net.count = n;
+  while(net.seats.length < n) net.seats.push({name: 'OPEN', type: 'open', ai: 'medium'});
+  net.seats.length = n;
+  S.select();
+  netSyncLobby();
+}
+
+function netSyncLobby(){
+  netRenderSeats();
+  netBroadcast({t: 'lobby', seats: net.seats.map(netPubSeat), count: net.count, hostName: net.seats[0].name});
+}
+
+function netStartGame(){
+  if(net.mode !== 'host' || net.started) return;
+  const slots = net.seats.map((s, i) => {
+    if(s.type === 'human') return {name: s.name, type: 'human', ai: null};
+    return {name: 'CPU-' + (i + 1), type: 'ai', ai: s.ai || 'medium'};
+  });
+  net.started = true;
+  startGame({count: slots.length, privacy: false, slots});
+}
+
+/* ==================================================================
+   CLIENT
+   ================================================================== */
+function netJoin(){
+  if(!netAvailable()){ toast('ONLINE NEEDS INTERNET — LIBRARY FAILED TO LOAD'); return; }
+  const code = ($('#netJoinCode').value || '').trim().toUpperCase();
+  const name = netSanitize($('#netJoinName').value);
+  if(code.length < 4){ toast('ENTER THE ROOM CODE FROM YOUR FRIEND'); return; }
+  netTeardown();
+  net.mode = 'client';
+  net.code = code;
+  netPanel('join');
+  netStatus('Connecting to table ' + code + '…', 'join');
+  const peer = new Peer(netOpts());
+  net.peer = peer;
+  peer.on('open', () => {
+    const conn = peer.connect(NET_PREFIX + code, {reliable: true});
+    net.up = conn;
+    conn.on('open', () => { try{ conn.send({t: 'join', name}); }catch(e){} });
+    conn.on('data', d => netClientData(d));
+    conn.on('close', () => netClientLost('The host closed the table.'));
+    conn.on('error', () => netClientLost('Connection error.'));
+  });
+  peer.on('error', err => {
+    if(err && err.type === 'peer-unavailable'){
+      netStatus('No table with code ' + code + ' — check the code, or ask your friend to host.', 'join');
+    } else if(err && (err.type === 'network' || err.type === 'server-error')){
+      netStatus('Cannot reach the match server — check your connection.', 'join');
+    } else {
+      netStatus('Connection problem — try again.', 'join');
+    }
+  });
+  setTimeout(() => {
+    if(net.mode === 'client' && !net.joined)
+      netStatus('Still connecting… if this hangs, the host may be offline.', 'join');
+  }, 9000);
+}
+
+function netClientData(d){
+  if(!d || typeof d !== 'object') return;
+  switch(d.t){
+    case 'welcome':
+      net.joined = true;
+      net.mySeat = d.seat;
+      netPanel('wait');
+      S.select();
+      break;
+    case 'lobby':
+      net.seats = d.seats.slice();
+      net.count = d.count;
+      if(!net.started) netRenderSeats();
+      break;
+    case 'full':    netClientLost('That table is full.'); break;
+    case 'busy':    netClientLost('A game is already running at that table.'); break;
+    case 'start':   netEnqueue(() => netClientStart(d)); break;
+    case 'move':    netEnqueue(() => applyRemoteMove(d)); break;
+    case 'scoring': netEnqueue(() => applyRemoteScoring(d)); break;
+    case 'note':
+      if(d.k === 'thinking' && st && st.players[d.pid])
+        banner(esc(st.players[d.pid].name) + ' IS THINKING<span class="thinkdots"><span>.</span><span>.</span><span>.</span></span>', true);
+      break;
+    case 'end':     netClientLost('The host ended the session.'); break;
+  }
+}
+
+function netClientLost(msg){
+  const wasIn = net.mode !== 'off';
+  netTeardown();
+  if(wasIn){
+    toast(msg.toUpperCase().slice(0, 60));
+    showScreen('lobby');
+    renderLobby();
+  }
+}
+
+/* client: the host launched (or relaunched) a game */
+function netClientStart(d){
+  net.started = true;
+  gameSeq++;
+  ui.sel = null; ui.lock = false; ui.humanResolve = null;
+  st = d.st;
+  ui.cfg = null;
+  applyCountClass();
+  showScreen('game');
+  $('#ovOver').classList.add('hidden');
+  $('#ovMenu').classList.add('hidden');
+  S.roundEnd();
+  render();
+  clientTurnUI();
+}
+
+function netEnqueue(fn){
+  net.msgQ = net.msgQ.then(fn).catch(e => console.error('neozul net:', e));
+}
+
+/* client: send my move intent to the host */
+function netSendMove(m){
+  if(net.mode !== 'client' || !net.up) return;
+  ui.lock = true;
+  $('#hintline').textContent = 'Sending your move…';
+  try{ net.up.send({t: 'move', m}); }catch(e){ netClientLost('Connection lost.'); }
+}
+
+/* ==================================================================
+   TEARDOWN / NAVIGATION
+   ================================================================== */
+function netTeardown(){
+  try{ if(net.up) net.up.close(); }catch(e){}
+  try{ if(net.peer) net.peer.destroy(); }catch(e){}
+  net.mode = 'off'; net.peer = null; net.up = null; net.conns = [];
+  net.mySeat = -1; net.code = ''; net.count = 2; net.seats = [];
+  net.started = false; net.pending = null; net.joined = false;
+  net.msgQ = Promise.resolve();
+}
+function netLeave(){
+  if(net.mode === 'host'){
+    netBroadcast({t: 'end'});
+    netTeardown();
+  } else if(net.mode === 'client'){
+    try{ if(net.up) net.up.send({t: 'leave'}); }catch(e){}
+    netTeardown();
+  }
+}
+
+function netInviteLink(){
+  return location.origin + location.pathname + '?join=' + net.code;
+}
+async function netCopyInvite(){
+  const txt = netInviteLink();
+  try{
+    await navigator.clipboard.writeText(txt);
+    toast('INVITE LINK COPIED');
+  }catch(e){
+    // clipboard API can be blocked — fall back to a visible prompt box
+    const inp = $('#netShareUrl');
+    if(inp){ inp.value = txt; inp.classList.remove('hidden'); inp.select(); try{ document.execCommand('copy'); toast('INVITE LINK COPIED'); }catch(e2){ toast('COPY THE LINK MANUALLY'); } }
+  }
+}
+
+/* ==================================================================
+   ONLINE LOBBY RENDERING
+   ================================================================== */
+function netPanel(which){                       // 'home' | 'host' | 'join' | 'wait'
+  const ids = {home: 'netHome', host: 'netHostPanel', join: 'netJoinPanel', wait: 'netWaitPanel'};
+  for(const k in ids) $('#' + ids[k]).classList.toggle('hidden', k !== which);
+}
+function netSeatRowHtml(s, i, isHost){
+  const occupied = s.type === 'human';
+  const isOpen = s.type === 'open';
+  const mine = !isHost && i === net.mySeat;
+  const label = i === 0 ? s.name
+    : occupied ? s.name
+    : s.type === 'ai' ? s.name + ' · ' + (s.ai || 'medium').toUpperCase()
+    : 'OPEN SEAT';
+  let ctl = '';
+  if(isHost && i > 0 && !occupied){
+    ctl = `<button class="btn small ghost" data-seat="${i}">${isOpen ? 'WAITING' : 'AI · ' + (s.ai || 'medium').toUpperCase()}</button>`;
+  }
+  const tags = i === 0
+    ? `<span class="tag you">HOST</span>`
+    : occupied
+      ? (mine ? `<span class="tag you">YOU</span>` : `<span class="tag conn">CONNECTED</span>`)
+      : `<span class="tag ai">${isOpen ? 'FRIEND OR AI' : 'AI'}</span>`;
+  return `<div class="slotrow ${occupied ? 'human' : 'ai'} seat${i + 1}${mine ? ' merow' : ''}">
+    <span class="seatdot"></span>
+    <div class="slotnum">P${i + 1}</div>
+    <div class="netseatname">${esc(label)}</div>
+    <div class="slotctl">${tags}${ctl}</div>
+  </div>`;
+}
+function netRenderSeats(){
+  const box = $(net.mode === 'host' ? '#netSeatList' : '#netSeatListWait');
+  if(!box) return;
+  const isHost = net.mode === 'host';
+  box.innerHTML = net.seats.map((s, i) => netSeatRowHtml(s, i, isHost)).join('');
+  if(isHost){
+    box.querySelectorAll('[data-seat]').forEach(b =>
+      b.addEventListener('click', () => netCycleSeat(+b.dataset.seat)));
+  }
+  const startBtn = $('#btnNetStart');
+  if(startBtn) startBtn.classList.toggle('hidden', !isHost || net.started);
+  const countSeg = $('#netCountSeg');
+  if(countSeg && isHost){
+    countSeg.querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.n === net.count));
+  }
+}
+
+/* ==================================================================
+   WIRING + BOOT
+   ================================================================== */
+$('#btnNetHost').addEventListener('click', netHost);
+$('#btnNetJoin').addEventListener('click', () => { netPanel('join'); S.select(); });
+$('#btnNetJoin2').addEventListener('click', netJoin);
+$('#btnNetStart').addEventListener('click', () => { netStartGame(); });
+$('#btnNetCopy').addEventListener('click', netCopyInvite);
+$('#netHostName').addEventListener('input', e => {
+  if(net.mode !== 'host') return;
+  net.seats[0].name = netSanitize(e.target.value);
+  netSyncLobby();
+});
+$('#netJoinCode').addEventListener('input', e => {
+  e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+});
+$('#netCountSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if(b) netSetCount(+b.dataset.n);
+});
+document.querySelectorAll('.netback').forEach(b =>
+  b.addEventListener('click', () => {
+    netLeave();
+    showScreen('lobby');
+    renderLobby();
+    S.select();
+  }));
+
+window.addEventListener('beforeunload', () => {
+  if(net.mode === 'host') netBroadcast({t: 'end'});
+  try{ if(net.peer) net.peer.destroy(); }catch(e){}
+});
+
+/* ==================================================================
+   NEOZUL — UI state, rendering, interaction
+   (local hot-seat / vs AI, plus online p2p via net.js)
+   ================================================================== */
+let st = null;              // engine state
+let ui = {sel: null, lock: false, humanResolve: null, cfg: null};
+let gameSeq = 0;            // generation counter: invalidates stale async loops after quit/restart
+
+const AI_LABEL = {easy:'AI · EASY', medium:'AI · MED', hard:'AI · HARD'};
+
+function humanCount(){ return st.players.filter(p => p.type === 'human').length; }
+
+/* whose input is this browser right now?
+   local modes: the current player must be human · online: my seat only */
+function iAmSeat(pid){
+  if(net.mode === 'client') return pid === net.mySeat;
+  return st.players[pid].type === 'human';
+}
+function canActNow(){
+  return !!st && st.phase === 'draft' && !ui.lock && iAmSeat(st.cur);
+}
+
+function showScreen(which){
+  $('#lobby').classList.toggle('hidden', which !== 'lobby');
+  $('#net').classList.toggle('hidden', which !== 'net');
+  $('#game').classList.toggle('hidden', which !== 'game');
+}
+function applyCountClass(){
+  const g = $('#game');
+  g.classList.remove('np2','np3','np4');
+  g.classList.add('np' + st.players.length);
+}
+
+/* ---------- rendering ---------- */
+function render(){
+  if(!st) return;
+  renderTop();
+  renderTable();
+  renderBoards();
+}
+function renderTop(){
+  $('#roundchip').textContent = 'ROUND ' + st.round;
+  $('#endchip').classList.toggle('show', st.endTriggered && st.phase !== 'over');
+  $('#btnSound').textContent = S.on ? '♪ ON' : '♪ OFF';
+}
+function tileHTML(c, extra = ''){
+  return `<div class="tile ${extra}" data-c="${AZ.COLORS[c]}"></div>`;
+}
+
+function renderTable(){
+  const canAct = canActNow();
+  const ring = $('#factring');
+  const n = st.factories.length;
+  const POS = [[0,-1],[1,0],[0,1],[-1,0]], ROTS = [-7,9,-4,12];
+  let html = '';
+  st.factories.forEach((f, i) => {
+    const a = -Math.PI/2 + i * 2*Math.PI/n;
+    const fx = Math.cos(a).toFixed(4), fy = Math.sin(a).toFixed(4);
+    let cells = '';
+    for(let k = 0; k < 4; k++){
+      const ox = `calc(var(--orsp)*${POS[k][0]})`, oy = `calc(var(--orsp)*${POS[k][1]})`;
+      if(f[k] !== undefined){
+        const selCls = ui.sel && ui.sel.s === i && ui.sel.c === f[k] ? 'sel' : '';
+        cells += `<div class="tile ${canAct ? 'clickable' : 'dimm'} ${selCls}" style="--ox:${ox};--oy:${oy};--rot:${ROTS[k]}deg" data-src="${i}" data-c="${AZ.COLORS[f[k]]}"></div>`;
+      } else {
+        cells += `<span class="fsock" style="--ox:${ox};--oy:${oy}"></span>`;
+      }
+    }
+    html += `<div class="factory ${f.length ? 'takable' : ''}" style="--fx:${fx};--fy:${fy}"><div class="plate"></div><div class="ftiles">${cells}</div></div>`;
+  });
+  const parts = [];
+  if(st.tokenOnFloorOf === -1) parts.push(`<div class="tokencore ${canAct ? 'clickable' : 'dimm'}" data-src="C" title="Starting player marker">1</div>`);
+  if(!st.center.length && st.tokenOnFloorOf !== -1) parts.push(`<span class="tag" style="opacity:.6">EMPTY</span>`);
+  for(const c of st.center){
+    const selCls = ui.sel && ui.sel.s === 'C' && ui.sel.c === c ? 'sel' : '';
+    parts.push(`<div class="tile small ${canAct ? 'clickable' : 'dimm'} ${selCls}" data-src="C" data-c="${AZ.COLORS[c]}"></div>`);
+  }
+  const nC = st.center.length + (st.tokenOnFloorOf === -1 ? 1 : 0);
+  const rows = Math.max(1, Math.ceil(nC / 4));
+  const ck = (2.2 + rows * 0.6).toFixed(2);
+  html += `<div id="centerplate" style="--ck:${ck}"><div id="centertiles">${parts.join('')}</div></div>`;
+  ring.innerHTML = html;
+  ring.classList.toggle('nf5', n <= 5);
+  ring.classList.toggle('nf7', n === 7);
+  ring.classList.toggle('nf9', n >= 9);
+}
+
+function previewInfo(m){
+  // display-only preview for the current selection
+  const P = st.players[st.cur];
+  const pool = m.s === 'C' ? st.center : st.factories[m.s];
+  const n = pool.filter(c => c === m.c).length;
+  const takesToken = m.s === 'C' && st.tokenOnFloorOf === -1;
+  const simFloor = P.floor.map(e => ({c:e.c, t:e.t}));
+  const pushF = e => { if(simFloor.length < AZ.FLOOR_SIZE) simFloor.push(e); };
+  if(takesToken) pushF({t:1});
+  const base = AZ.penFor(simFloor);
+  let pts = 0, q = 0;
+  if(m.d === 'F'){
+    for(let i = 0; i < n; i++) pushF({c:m.c});
+    q = AZ.penFor(simFloor) - base;
+  } else {
+    const r = m.d, size = r + 1, L = P.lines[r];
+    const put = Math.min(size - L.n, n);
+    if(L.n + put === size){
+      const simWall = P.wall.map(row => row.slice());
+      simWall[r][AZ.wallCol(r, m.c)] = m.c;
+      pts = AZ.adjPts(simWall, r, AZ.wallCol(r, m.c));
+    }
+    const over = n - put;
+    for(let i = 0; i < over; i++) pushF({c:m.c});
+    q = AZ.penFor(simFloor) - base;
+  }
+  return {pts, q};
+}
+
+function boardHTML(P, pid){
+  const isTurn = st.phase === 'draft' && st.cur === pid;
+  const mine = iAmSeat(pid);
+  let youTxt;
+  if(net.mode === 'client') youTxt = mine ? 'YOU' : 'PLAYER';
+  else if(net.mode === 'host') youTxt = pid === net.mySeat ? 'YOU' : 'PLAYER';
+  else youTxt = (humanCount() === 1 ? 'YOU' : 'HUMAN');
+  const tag = P.type === 'ai'
+    ? `<span class="tag ai">${AI_LABEL[P.ai] || 'AI'}</span>`
+    : `<span class="tag you">${youTxt}</span>`;
+  const tokTag = st.tokenOnFloorOf === pid ? `<span class="tag tok" title="Takes the first turn next round">1ST NEXT ROUND</span>` : '';
+  const turnChip = isTurn
+    ? `<span class="chip turnchip">${mine ? 'YOUR TURN' : 'PLAYING'}</span>`
+    : (net.mode !== 'off' && P.type === 'human' ? `<span class="chip waitchip">WAITING</span>` : '');
+
+  const lines = P.lines.map((L, r) => {
+    let inner = '';
+    const valid = ui.sel && !ui.lock && isTurn && mine &&
+                  AZ.canPlaceLine(P, r, ui.sel.c);
+    for(let k = 0; k < L.n; k++) inner += tileHTML(L.c);
+    for(let k = L.n; k < r + 1; k++) inner += `<span class="tsock"></span>`;
+    let prev = '';
+    if(valid){
+      const info = previewInfo({s: ui.sel.s, c: ui.sel.c, d: r});
+      let txt, cls = '';
+      if(info.pts > 0 && info.q > 0){ txt = `+${info.pts} / −${info.q}`; cls = 'mix'; }
+      else if(info.pts > 0){ txt = `+${info.pts}`; }
+      else if(info.q > 0){ txt = `−${info.q}`; cls = 'bad'; }
+      else { txt = `+0`; }
+      prev = `<span class="prev ${cls}">${txt}</span>`;
+    }
+    return `<div class="pline ${valid ? 'ok' : (ui.sel && isTurn ? 'no' : '')}" data-r="${r}">${inner}${prev}</div>`;
+  }).join('');
+
+  let wall = '';
+  for(let r = 0; r < 5; r++){
+    for(let c = 0; c < 5; c++){
+      const hex = COLHEX[AZ.COLORS[AZ.WALL[r][c]]];
+      const fill = P.wall[r][c];
+      wall += fill >= 0
+        ? `<div class="wcell filled" data-r="${r}" data-c="${c}" style="--wc:${hex}">${tileHTML(fill)}</div>`
+        : `<div class="wcell" data-r="${r}" data-c="${c}" style="--wc:${hex}"></div>`;
+    }
+  }
+
+  const floorValid = ui.sel && !ui.lock && isTurn && mine;
+  let floor = `<div class="floorrow${floorValid ? ' ok' : ''}">`;
+  for(let i = 0; i < 7; i++){
+    const e = P.floor[i];
+    let boxInner = '';
+    if(e) boxInner = e.t ? `<div class="tokencore small">1</div>` : tileHTML(e.c);
+    floor += `<div class="fslot ${e ? 'occupied' : ''}"><div class="box">${boxInner}</div><span class="pen">-${AZ.FLOOR_PEN[i]}</span></div>`;
+  }
+  floor += '</div>';
+  let floorPrev = '';
+  if(floorValid){
+    const q = previewInfo({s: ui.sel.s, c: ui.sel.c, d: 'F'}).q;
+    floorPrev = `<span class="fprev ${q > 0 ? 'bad' : ''}">${q > 0 ? '−' + q : '±0'}</span>`;
+  }
+
+  return `<div class="boardcard seat${pid + 1} ${isTurn ? 'turn' : ''} ${mine ? 'me' : ''}" id="board-${pid}" data-pid="${pid}">
+    <div class="boardhead">
+      <span class="pname">${esc(P.name)}</span>${tag}${tokTag}${turnChip}
+      <span class="pscore" data-spid="${pid}">${P.score}</span>
+    </div>
+    <div class="bwrap">
+      <div class="blines">${lines}</div>
+      <div class="wallgrid">${wall}</div>
+    </div>
+    <div class="floorwrap">${floor}${floorPrev}</div>
+  </div>`;
+}
+function renderBoards(){
+  $('#boards').innerHTML = st.players.map((P, i) => boardHTML(P, i)).join('');
+}
+
+/* score counter tween with escalating coin ticks */
+function tweenScore(pid, from, to, opts = {}){
+  document.querySelectorAll(`[data-spid="${pid}"]`).forEach(el => {
+    const t0 = performance.now(), dur = opts.dur || 420;
+    let lastTick = 0, step = 0;
+    (function frame(now){
+      const k = Math.min(1, (now - t0) / dur);
+      const v = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+      el.textContent = v;
+      if(to > from && now - lastTick > 55 && k < 1){
+        lastTick = now;
+        S.coin(opts.step !== undefined ? opts.step + step : step++);
+      }
+      if(k < 1) requestAnimationFrame(frame);
+      else el.textContent = to;
+    })(t0);
+  });
+}
+
+/* ==================================================================
+   INTERACTION
+   ================================================================== */
+function clearSel(){ ui.sel = null; render(); }
+
+function selectSource(s, c){
+  if(!canActNow()) return;
+  if(ui.sel && ui.sel.s === s && ui.sel.c === c){ clearSel(); return; }
+  ui.sel = {s, c};
+  S.select();
+  render();
+  const pool = s === 'C' ? st.center : st.factories[s];
+  const n = pool.filter(x => x === c).length;
+  $('#hintline').innerHTML = `<b>${n}× ${AZ.COLORS[c].toUpperCase()}</b> drafted — click a pattern line or the floor line`;
+}
+
+/* where the drafted tiles fly from: the .sel tiles if this browser
+   selected them, otherwise any matching tiles in the pre-move DOM */
+function findSrcRects(m){
+  const sel = [...document.querySelectorAll('#factring .tile.sel, #centertiles .tile.sel')];
+  if(sel.length) return sel.map(el => el.getBoundingClientRect());
+  const scope = m.s === 'C' ? '#centertiles' : `#factring .factory:nth-child(${(m.s | 0) + 1})`;
+  return [...document.querySelectorAll(scope + ` .tile[data-c="${AZ.COLORS[m.c]}"]`)]
+    .slice(0, 4).map(el => el.getBoundingClientRect());
+}
+
+/* shared move animation (local actor and remote replay alike) */
+async function animateMoveFx(pid, m, evs, srcRects, tokRect, preRest, myId){
+  // fresh tiles pop into the pattern line
+  const lineEv = evs.find(e => e.t === 'line');
+  if(lineEv){
+    const row = document.querySelector(`#board-${pid} .pline[data-r="${lineEv.r}"]`);
+    if(row) row.querySelectorAll('.tile').forEach(t => { t.classList.add('pop-in'); });
+    const rowRect = row ? row.getBoundingClientRect() : null;
+    if(rowRect && srcRects.length){
+      const tr = {left: rowRect.left + 4, top: rowRect.top + 3, width: Math.min(44, rowRect.width - 8), height: Math.min(44, rowRect.height - 6)};
+      srcRects.slice(0, 4).forEach((sr, i) => setTimeout(() => {
+        flyRect(sr, tr, AZ.COLORS[m.c]);
+        if(i === 0) S.place();
+      }, i * 60));
+    }
+  }
+  // leftover tiles fly to the center
+  const leftEv = evs.find(e => e.t === 'leftover');
+  if(leftEv){
+    const plate = document.querySelector(`#factring .factory:nth-child(${(m.s | 0) + 1}) .plate`);
+    const ctr = $('#centerplate');
+    if(plate && ctr){
+      const from = plate.getBoundingClientRect(), to = centerRect(ctr);
+      for(let i = 0; i < Math.min(leftEv.n, 3); i++)
+        setTimeout(() => {
+          flyRect(from, to, AZ.COLORS[preRest.length ? preRest[i % preRest.length] : 0], {});
+          S.toCenter();
+        }, 120 + i * 70);
+    }
+  }
+  // tiles dumped to the floor fly down too
+  if(evs.some(e => e.t === 'floorplace') && srcRects.length){
+    const fr = document.querySelector(`#board-${pid} .floorrow`);
+    if(fr){
+      const to = centerRect(fr.querySelector('.fslot:last-child .box') || fr);
+      srcRects.slice(0, 4).forEach((sr, i) => setTimeout(() => flyRect(sr, to, AZ.COLORS[m.c]), 100 + i * 60));
+    }
+  }
+  // overflow thud
+  const ovEv = evs.find(e => e.t === 'overflow');
+  if(ovEv){
+    const fr = document.querySelector(`#board-${pid} .floorrow`);
+    if(fr){
+      fr.classList.add('hit');
+      setTimeout(() => fr.classList.remove('hit'), 450);
+      FX.shake(2 + ovEv.n);
+      S.penalty();
+      spawnPopupAt(fr, `${ovEv.n} TO FLOOR`, 'neg');
+    }
+  }
+  // token seize
+  if(evs.some(e => e.t === 'token')){
+    const fr = document.querySelector(`#board-${pid} .floorrow .fslot .tokencore`);
+    if(tokRect && fr) flyRect(tokRect, fr.getBoundingClientRect(), null, {token: true});
+    S.token();
+    FX.shake(4);
+    const bEl = $(`#board-${pid} .boardhead`);
+    spawnPopupAt(bEl, 'FIRST PLAYER TOKEN TAKEN', 'sys');
+  }
+  await sleep(440);
+  if(myId !== gameSeq) return; // game was restarted while animating
+}
+
+/* local authority move: apply, broadcast, animate */
+async function doMove(m){
+  const myId = gameSeq;
+  ui.lock = true;
+  const pid = st.cur;
+
+  // capture source rects (pre-mutation)
+  const srcRects = findSrcRects(m);
+  const tokEl = (m.s === 'C' && st.tokenOnFloorOf === -1) ? document.querySelector('#centertiles .tokencore') : null;
+  const tokRect = tokEl ? tokEl.getBoundingClientRect() : null;
+  const preRest = m.s === 'C' ? [] : st.factories[m.s].filter(c => c !== m.c);
+
+  S.take();
+  const evs = AZ.applyMove(st, pid, m);
+  ui.sel = null;
+  netBroadcast({t: 'move', pid, m, evs, st});   // host: full snapshot + events
+  render();
+
+  await animateMoveFx(pid, m, evs, srcRects, tokRect, preRest, myId);
+  if(myId !== gameSeq) return;
+
+  if(st.phase === 'scoring' || st.phase === 'over'){
+    const preScores = st.players.map(p => p.score);
+    const sevs = AZ.runScoring(st);
+    netBroadcast({t: 'scoring', evs: sevs, st, preScores});
+    await scoringSeq(myId, sevs, preScores);
+  }
+  if(myId !== gameSeq) return;
+  saveGame();
+  if(st.phase === 'over'){ showGameOver(); }
+  ui.lock = false;
+  const r = ui.humanResolve; ui.humanResolve = null;
+  if(r) r();
+}
+
+/* ---------- client-side replay of the host's snapshots ---------- */
+async function applyRemoteMove(msg){
+  const myId = gameSeq;
+  const pid = msg.pid, m = msg.m, evs = msg.evs;
+  if(!st || !msg.st) return;
+  // capture source rects from the pre-move DOM
+  const srcRects = findSrcRects(m);
+  const tokEl = (m.s === 'C' && st.tokenOnFloorOf === -1) ? document.querySelector('#centertiles .tokencore') : null;
+  const tokRect = tokEl ? tokEl.getBoundingClientRect() : null;
+  const preRest = m.s === 'C' ? [] : (st.factories[m.s] || []).filter(c => c !== m.c);
+  ui.sel = null;
+  st = msg.st;
+  S.take();
+  render();
+  await animateMoveFx(pid, m, evs, srcRects, tokRect, preRest, myId);
+  clientTurnUI();
+}
+
+async function applyRemoteScoring(msg){
+  const myId = gameSeq;
+  if(!msg.st) return;
+  st = msg.st;
+  ui.lock = true;
+  await scoringSeq(myId, msg.evs, msg.preScores);
+  if(st.phase === 'over'){ showGameOver(); }
+  else clientTurnUI();
+}
+
+function clientTurnUI(){
+  if(!st || st.phase === 'over') return;
+  if(st.phase === 'scoring'){ ui.lock = true; return; }
+  ui.lock = !(st.phase === 'draft' && st.cur === net.mySeat);
+  if(st.cur === net.mySeat){
+    banner(`YOUR TURN — <span class="bname">${esc(st.players[st.cur].name)}</span>`);
+    $('#hintline').textContent = 'Click tiles to draft, then a pattern line or the floor line.';
+  } else {
+    banner(`${esc(st.players[st.cur].name)}'S TURN`);
+    $('#hintline').textContent = 'Waiting for ' + st.players[st.cur].name + ' to move…';
+  }
+}
+
+async function scoringSeq(myId, evs, preScores){
+  ui.lock = true;
+  banner('WALL TILING', false);
+  S.whoosh();
+  await sleep(350);
+  if(myId !== gameSeq) return;
+  for(let pid = 0; pid < st.players.length; pid++){
+    const evp = evs.filter(e => e.pid === pid);
+    render();
+    banner(`${esc(st.players[pid].name)} — SCORING`, st.players[pid].type === 'ai');
+    await sleep(320);
+    if(myId !== gameSeq) return;
+    let combo = 0, target = preScores[pid];
+    for(const e of evp){
+      if(e.t === 'wall'){
+        const cell = document.querySelector(`#board-${pid} .wcell[data-r="${e.r}"][data-c="${e.col}"]`);
+        const lineEl = document.querySelector(`#board-${pid} .pline[data-r="${e.r}"]`);
+        if(cell && lineEl){
+          const sr = lineEl.getBoundingClientRect();
+          flyRect({left: sr.left + 4, top: sr.top + 3, width: Math.min(40, sr.width - 8), height: Math.min(40, sr.height - 6)},
+                  cell.getBoundingClientRect(), AZ.COLORS[e.c]);
+        }
+        if(cell) cell.classList.add('landing');
+        S.wall(combo);
+        target += e.pts;
+        tweenScore(pid, target - e.pts, target, {step: combo});
+        spawnPopupAt(cell, `+${e.pts}`, e.pts >= 6 ? 'big' : 'pts');
+        burstAt(cell, COLHEX[AZ.COLORS[e.c]], e.pts >= 6 ? 30 : 12);
+        if(e.pts >= 6) FX.shake(5);
+        combo++;
+        await sleep(310);
+        if(myId !== gameSeq) return;
+      } else if(e.t === 'floor'){
+        const fr = document.querySelector(`#board-${pid} .floorrow`);
+        if(fr){ fr.classList.add('hit'); setTimeout(() => fr.classList.remove('hit'), 450); }
+        S.penalty();
+        FX.shake(3 + e.pen);
+        target -= e.pen;
+        tweenScore(pid, target + e.pen, target, {dur: 300});
+        spawnPopupAt(fr, `-${e.pen}`, 'neg');
+        await sleep(340);
+        if(myId !== gameSeq) return;
+      }
+    }
+  }
+  if(st.phase === 'over'){
+    banner('FINAL SCORING', false);
+    await sleep(600);
+  } else {
+    banner(`ROUND ${st.round} — NEW TILES LOADED`, false);
+    S.roundEnd();
+    await sleep(500);
+  }
+  if(myId !== gameSeq) return;
+  render();
+}
+
+/* ---------- game over ---------- */
+function showGameOver(){
+  if(!$('#ovOver').classList.contains('hidden')) return; // already showing
+  saveGame();
+  const winners = st.winners || [];
+  const shared = winners.length > 1;
+  const wNames = winners.map(i => esc(st.players[i].name)).join(' + ');
+  $('#overTag').textContent = shared ? 'shared victory' : 'winner';
+  $('#overTitle').innerHTML = `<span class="g">${wNames}</span>`;
+  $('#overSub').innerHTML = `Top score: <b>${st.players[winners[0]].score}</b> after ${st.round} round${st.round > 1 ? 's' : ''}. GG — run it back?`;
+  const fb = st.finalBreak || st.players.map(() => ({rows:0, cols:0, colors:0, pts:0}));
+  let rowsHtml = '';
+  const order = st.players.map((_, i) => i).sort((a, b) => st.players[b].score - st.players[a].score);
+  for(const i of order){
+    const P = st.players[i], b = fb[i];
+    const isW = winners.includes(i);
+    rowsHtml += `<tr class="${isW ? 'winner' : ''}">
+      <td class="n">${esc(P.name)}${P.type === 'ai' ? ' <span class="tag ai">AI</span>' : ''}</td>
+      <td class="g">+${b.rows * 2}</td><td class="p">+${b.cols * 7}</td><td class="y">+${b.colors * 10}</td>
+      <td class="y" style="font-weight:800">${P.score}</td></tr>`;
+  }
+  $('#overTable').innerHTML = `<table class="scoretable">
+    <tr><th style="text-align:left">PLAYER</th><th>ROWS ×2</th><th>COLS ×7</th><th>SETS ×10</th><th>TOTAL</th></tr>
+    ${rowsHtml}</table>`;
+  $('#btnRematch').classList.toggle('hidden', net.mode === 'client');
+  $('#overWait').classList.toggle('hidden', net.mode !== 'client');
+  $('#ovOver').classList.remove('hidden');
+  S.win();
+  FX.coinRain(130);
+  FX.shake(7);
+  banner('GAME OVER');
+}
+
+/* ---------- pass device overlay ---------- */
+function passOverlay(P){
+  return new Promise(res => {
+    $('#passName').textContent = P.name;
+    $('#ovPass').classList.remove('hidden');
+    S.whoosh();
+    const btn = $('#btnReady');
+    btn.onclick = () => {
+      $('#ovPass').classList.add('hidden');
+      S.select();
+      res();
+    };
+  });
+}
+
+/* ---------- main loop (authority only: local games + the online host) ---------- */
+async function gameLoop(){
+  const myId = ++gameSeq;
+  while(true){
+    if(myId !== gameSeq) return; // a newer game took over
+    if(st.phase === 'over'){ showGameOver(); return; }
+    if(st.phase === 'scoring'){
+      const preScores = st.players.map(p => p.score);
+      const evs = AZ.runScoring(st);
+      await scoringSeq(myId, evs, preScores);
+      continue;
+    }
+    if(st.phase === 'draft' && !AZ.legalMoves(st, st.cur).length){
+      // ultra-rare: table completely dry — return unfinished line tiles and tile the wall
+      let had = false;
+      for(const P of st.players) for(const L of P.lines){
+        if(L.c >= 0 && L.n){ had = true; for(let k = 0; k < L.n; k++) st.lid.push(L.c); L.c = -1; L.n = 0; }
+      }
+      if(!had && !st.lid.length && !st.bag.length){
+        const order = st.players.map((_, i) => i).sort((a, b) => st.players[b].score - st.players[a].score);
+        st.winners = [order[0]];
+        st.phase = 'over';
+        continue;
+      }
+      st.phase = 'scoring';
+      continue;
+    }
+    const P = st.players[st.cur];
+    render();
+    if(P.type === 'ai'){
+      ui.lock = true;
+      render();
+      banner(`${esc(P.name)} <span class="tag ai">${AI_LABEL[P.ai]}</span> IS THINKING<span class="thinkdots"><span>.</span><span>.</span><span>.</span></span>`, true);
+      if(net.mode === 'host') netBroadcast({t: 'note', k: 'thinking', pid: st.cur});
+      await sleep(560 + Math.random() * 420);
+      if(myId !== gameSeq) return;
+      const m = AZ.aiChooseMove(st, st.cur);
+      if(!m){ // safety: shouldn't happen (floor is always legal)
+        console.error('AI found no move', st);
+        return;
+      }
+      ui.sel = {s: m.s, c: m.c};
+      render();
+      await sleep(470);
+      if(myId !== gameSeq) return;
+      await doMove(m);
+    } else {
+      ui.lock = false;
+      if(net.mode === 'host'){
+        const pm = net.pending; net.pending = null;   // buffered remote move
+        if(pm && AZ.legalMoves(st, st.cur).some(x => x.s === pm.s && x.c === pm.c && x.d === pm.d)){
+          await doMove(pm); if(myId !== gameSeq) return; continue;
+        }
+      }
+      if(net.mode === 'off' && st.cfg.privacy && humanCount() > 1){
+        await passOverlay(P);
+        if(myId !== gameSeq) return;
+      }
+      if(net.mode === 'host' && st.cur !== net.mySeat){
+        banner(`${esc(P.name)}'S TURN`);
+        $('#hintline').textContent = 'Waiting for ' + P.name + ' to move…';
+      } else {
+        banner(`YOUR TURN — <span class="bname">${esc(P.name)}</span>`);
+        $('#hintline').textContent = 'Click tiles to draft, then a pattern line or the floor line.';
+      }
+      await new Promise(res => { ui.humanResolve = res; });
+      if(myId !== gameSeq) return;
+      if(st.phase === 'over') return;
+    }
+  }
+}
+
+/* ==================================================================
+   LOBBY (local games)
+   ================================================================== */
+let lobby = {count: 2, slots: [
+  {name:'PLAYER 1', type:'human', ai:null},
+  {name:'CPU-1', type:'ai', ai:'medium'},
+  {name:'CPU-2', type:'ai', ai:'hard'},
+  {name:'PLAYER 4', type:'human', ai:null},
+]};
+function renderLobby(){
+  document.querySelectorAll('#countSeg button').forEach(b =>
+    b.classList.toggle('on', +b.dataset.n === lobby.count));
+  const wrap = $('#slots');
+  wrap.innerHTML = '';
+  for(let i = 0; i < lobby.count; i++){
+    const s = lobby.slots[i];
+    const row = document.createElement('div');
+    row.className = 'slotrow ' + (s.type === 'human' ? 'human' : 'ai') + ` seat${i + 1}`;
+    const isHuman = s.type === 'human';
+    row.innerHTML = `
+      <span class="seatdot"></span>
+      <div class="slotnum">P${i + 1}</div>
+      <input class="namein" maxlength="14" value="${esc(s.name)}" spellcheck="false">
+      <div class="slotctl">
+        <button class="btn small ${isHuman ? 'ghost' : 'warm'}" data-act="type">${isHuman ? 'HUMAN' : 'AI · ' + (s.ai || 'medium').toUpperCase()}</button>
+      </div>`;
+    row.querySelector('.namein').addEventListener('input', e => { s.name = e.target.value; });
+    row.querySelector('[data-act="type"]').addEventListener('click', () => {
+      S.select();
+      if(s.type === 'human'){ s.type = 'ai'; s.ai = 'easy'; }
+      else if(s.ai === 'easy') s.ai = 'medium';
+      else if(s.ai === 'medium') s.ai = 'hard';
+      else {
+        s.type = 'human'; s.ai = null;
+        if(/^cpu/i.test(s.name)) s.name = 'PLAYER ' + (i + 1);
+      }
+      renderLobby();
+    });
+    wrap.appendChild(row);
+  }
+  const hasSave = !!loadGame();
+  $('#btnResume').classList.toggle('hidden', !hasSave);
+}
+
+function startGame(cfg){
+  ui.cfg = cfg;
+  st = AZ.newGame(cfg);
+  applyCountClass();
+  showScreen('game');
+  $('#ovOver').classList.add('hidden');
+  saveGame();
+  S.roundEnd();
+  if(net.mode === 'host') netBroadcast({t: 'start', st});
+  gameLoop();
+}
+
+/* ==================================================================
+   EVENTS / BOOT
+   ================================================================== */
+document.addEventListener('pointerdown', () => S.unlock(), {once: true});
+
+$('#countSeg').addEventListener('click', e => {
+  const b = e.target.closest('button');
+  if(!b) return;
+  lobby.count = +b.dataset.n;
+  S.select();
+  renderLobby();
+});
+$('#tglSound').addEventListener('click', () => {
+  const on = S.toggle();
+  $('#tglSound').classList.toggle('on', on);
+});
+$('#tglPrivacy').addEventListener('click', () => $('#tglPrivacy').classList.toggle('on'));
+$('#btnStart').addEventListener('click', () => {
+  const privacy = $('#tglPrivacy').classList.contains('on');
+  const slots = lobby.slots.slice(0, lobby.count).map(s => ({name: (s.name || 'PLAYER').slice(0, 14), type: s.type, ai: s.ai}));
+  if(!slots.some(s => s.type === 'human')) toast('AI-ONLY DEMO — NO HUMAN PLAYERS');
+  startGame({count: slots.length, privacy, slots});
+});
+$('#btnResume').addEventListener('click', () => {
+  const s = loadGame();
+  if(!s){ toast('NO SAVE FOUND'); return; }
+  st = s;
+  ui.cfg = {count: st.players.length, privacy: st.cfg.privacy, slots: st.players.map(p => ({name: p.name, type: p.type, ai: p.ai}))};
+  applyCountClass();
+  showScreen('game');
+  $('#ovOver').classList.add('hidden');
+  if(st.phase === 'over'){ render(); showGameOver(); }
+  else gameLoop();
+});
+$('#btnNet').addEventListener('click', () => {
+  S.select();
+  netPanel('home');
+  showScreen('net');
+});
+$('#btnSound').addEventListener('click', () => {
+  const on = S.toggle();
+  $('#btnSound').textContent = on ? '♪ ON' : '♪ OFF';
+});
+$('#btnMenu').addEventListener('click', () => { $('#ovMenu').classList.remove('hidden'); S.select(); });
+$('#btnCloseMenu').addEventListener('click', () => { $('#ovMenu').classList.add('hidden'); S.select(); });
+$('#btnToLobby').addEventListener('click', () => {
+  netLeave();               // online: leave the table cleanly
+  saveGame();
+  gameSeq++;                // kill any running game loops
+  ui.humanResolve = null;
+  st = null;
+  $('#ovMenu').classList.add('hidden');
+  showScreen('lobby');
+  renderLobby();
+});
+$('#btnAbandon').addEventListener('click', () => {
+  netLeave();
+  clearSave();
+  st = null;
+  gameSeq++;
+  ui.humanResolve = null;
+  $('#ovMenu').classList.add('hidden');
+  showScreen('lobby');
+  renderLobby();
+  toast('GAME ABANDONED');
+});
+$('#btnRematch').addEventListener('click', () => {
+  $('#ovOver').classList.add('hidden');
+  const cfg = {count: st.players.length, privacy: st.cfg.privacy,
+               slots: st.players.map(p => ({name: p.name, type: p.type, ai: p.ai}))};
+  startGame(cfg);
+});
+$('#btnOverLobby').addEventListener('click', () => {
+  $('#ovOver').classList.add('hidden');
+  netLeave();               // an online session ends when you walk away
+  st = null;
+  showScreen('lobby');
+  renderLobby();
+});
+
+/* board + table clicks (delegated) */
+$('#game').addEventListener('click', e => {
+  const t = e.target;
+  if(t.classList.contains('tile') && t.dataset.src !== undefined){
+    selectSource(t.dataset.src === 'C' ? 'C' : +t.dataset.src, AZ.COLORS.indexOf(t.dataset.c));
+    e.stopPropagation();
+    return;
+  }
+  if(t.classList.contains('tokencore') && t.dataset.src === 'C'){
+    // token alone in an empty center: nothing to draft
+    return;
+  }
+  const pline = t.closest('.pline');
+  if(pline && pline.classList.contains('ok') && ui.sel){
+    const card = pline.closest('.boardcard');
+    if(!card || +card.dataset.pid !== st.cur) return;
+    const r = +pline.dataset.r;
+    const legal = AZ.legalMoves(st, st.cur).some(m => m.s === ui.sel.s && m.c === ui.sel.c && m.d === r);
+    if(!legal){ S.error(); toast('THAT LINE IS BLOCKED'); return; }
+    const m = {s: ui.sel.s, c: ui.sel.c, d: r};
+    if(net.mode === 'client') netSendMove(m);
+    else doMove(m);
+    e.stopPropagation();
+    return;
+  }
+  const frow = t.closest('.floorrow');
+  if(frow && frow.classList.contains('ok') && ui.sel){
+    const card = frow.closest('.boardcard');
+    if(!card || +card.dataset.pid !== st.cur) return;
+    const m = {s: ui.sel.s, c: ui.sel.c, d: 'F'};
+    if(net.mode === 'client') netSendMove(m);
+    else doMove(m);
+    e.stopPropagation();
+    return;
+  }
+  if(ui.sel && !ui.lock) clearSel();
+});
+document.addEventListener('mouseover', e => {
+  const fr = e.target.closest && e.target.closest('.floorrow');
+  if(fr && ui.sel && !ui.lock && st && st.phase === 'draft' && iAmSeat(st.cur)){
+    const card = fr.closest('.boardcard');
+    if(card && +card.dataset.pid === st.cur) fr.classList.add('ok');
+  }
+});
+document.addEventListener('mouseout', e => {
+  const fr = e.target.closest && e.target.closest('.floorrow');
+  if(fr) fr.classList.remove('ok');
+});
+
+document.addEventListener('keydown', e => {
+  if(e.key === 'Escape' && ui.sel) clearSel();
+});
+// subtle hover blip on buttons
+document.addEventListener('mouseover', e => {
+  if(e.target.closest && e.target.closest('.btn')) S.hover();
+}, {passive: true});
+
+renderLobby();
+showScreen('lobby');
+
+/* invite links: page.html?join=CODE jumps straight to the join form */
+(function(){
+  const j = new URLSearchParams(location.search).get('join');
+  if(j && /^[A-Z0-9]{4,8}$/i.test(j)){
+    netPanel('join');
+    showScreen('net');
+    $('#netJoinCode').value = j.toUpperCase();
+    netStatus('Joining table ' + j.toUpperCase() + ' — enter your name and press JOIN.', 'join');
+  }
+})();
+
+</script>
+
+
+
+</body>
+</html>
